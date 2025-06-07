@@ -1,22 +1,71 @@
 {% extends "base.html" %}
-{% block title %}Player Setup - Disavowed{% endblock %}
+{% block title %}Mission Setup - Disavowed{% endblock %}
 {% block content %}
 <div class="container mt-5">
-    <h2>Agent Profile Setup</h2>
+    <h2>Mission Configuration</h2>
     <form method="POST">
-        <div class="mb-3">
-            <label for="player_name" class="form-label">Agent Name</label>
-            <input type="text" class="form-control" id="player_name" name="player_name" required>
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <label for="player_name" class="form-label">Agent Name</label>
+                <input type="text" class="form-control" id="player_name" name="player_name" required>
+            </div>
+            <div class="col-md-6">
+                <label for="player_gender" class="form-label">Pronouns</label>
+                <select class="form-control" id="player_gender" name="player_gender">
+                    <option value="they/them">They/Them</option>
+                    <option value="he/him">He/Him</option>
+                    <option value="she/her">She/Her</option>
+                </select>
+            </div>
         </div>
-        <div class="mb-3">
-            <label for="player_gender" class="form-label">Pronouns</label>
-            <select class="form-control" id="player_gender" name="player_gender">
-                <option value="they/them">They/Them</option>
-                <option value="he/him">He/Him</option>
-                <option value="she/her">She/Her</option>
-            </select>
+        
+        <div class="row">
+            <div class="col-md-4">
+                <h4>Mission Giver</h4>
+                {% for giver in mission_givers %}
+                <div class="card mb-2">
+                    <div class="card-body">
+                        <input type="radio" name="mission_giver_id" value="{{ giver.id }}" id="giver_{{ giver.id }}" required>
+                        <label for="giver_{{ giver.id }}">
+                            <strong>{{ giver.character_name }}</strong><br>
+                            <small>{{ giver.description[:100] if giver.description else 'No description' }}...</small>
+                        </label>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="col-md-4">
+                <h4>Target/Villain</h4>
+                {% for villain in villains %}
+                <div class="card mb-2">
+                    <div class="card-body">
+                        <input type="radio" name="villain_id" value="{{ villain.id }}" id="villain_{{ villain.id }}" required>
+                        <label for="villain_{{ villain.id }}">
+                            <strong>{{ villain.character_name }}</strong><br>
+                            <small>{{ villain.description[:100] if villain.description else 'No description' }}...</small>
+                        </label>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="col-md-4">
+                <h4>Partner</h4>
+                {% for partner in partners %}
+                <div class="card mb-2">
+                    <div class="card-body">
+                        <input type="radio" name="partner_id" value="{{ partner.id }}" id="partner_{{ partner.id }}" required>
+                        <label for="partner_{{ partner.id }}">
+                            <strong>{{ partner.character_name }}</strong><br>
+                            <small>{{ partner.description[:100] if partner.description else 'No description' }}...</small>
+                        </label>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
         </div>
-        <button type="submit" class="btn btn-primary">Begin Mission Selection</button>
+        <div class="mt-4">
+            <button type="submit" class="btn btn-primary btn-lg">Generate Mission</button>
+        </div>
     </form>
 </div>
 {% endblock %}

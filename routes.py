@@ -26,18 +26,29 @@ def start_game():
     """Player setup - name, gender, character selection"""
     try:
         if request.method == 'GET':
-            # Show setup form
-            return render_template('start_game.html')
+            # Show character selection directly with name input
+            mission_givers = Character.query.filter_by(character_role='mission-giver').all()
+            villains = Character.query.filter_by(character_role='villain').all()
+            partners = Character.query.filter(Character.character_role.in_(['neutral', 'undetermined'])).all()
+            
+            return render_template('start_game.html',
+                                 mission_givers=mission_givers,
+                                 villains=villains,
+                                 partners=partners)
         
-        # Process form submission
+        # Process complete form submission
         player_name = request.form.get('player_name')
         player_gender = request.form.get('player_gender', 'they/them')
+        mission_giver_id = request.form.get('mission_giver_id')
+        villain_id = request.form.get('villain_id')
+        partner_id = request.form.get('partner_id')
         
-        if not player_name or not player_name.strip():
-            flash("Please enter your name.", "error")
-            return render_template('start_game.html')
+        if not all([player_name, mission_giver_id, villain_id, partner_id]):
+            flash("Please fill in all fields.", "error")
+            return redirect(url_for('start_game'))
         
-        player_name = player_name.strip()
+        if player_name:
+            player_name = player_name.strip()
         
         # Generate or get user ID
         if 'user_id' not in session:
@@ -47,25 +58,25 @@ def start_game():
         session['player_name'] = player_name
         session['player_gender'] = player_gender
         
-        # Get or create user progress
-        user_progress = UserProgress.query.filter_by(user_id=user_id).first()
-        if not user_progress:
-            user_progress = UserProgress()
-            user_progress.user_id = user_id
-            user_progress.currency_balances = {"💎": 5, "💵": 50, "💷": 40, "💶": 45, "💴": 500}
-            user_progress.choice_history = []
-            user_progress.achievements_earned = []
-            user_progress.encountered_characters = []
-            user_progress.active_missions = []
-            user_progress.completed_missions = []
-            user_progress.failed_missions = []
-            user_progress.active_plot_arcs = []
-            user_progress.completed_plot_arcs = []
-            user_progress.game_state = {'player_name': player_name, 'player_gender': player_gender}
-            db.session.add(user_progress)
-            db.session.commit()
+        # Get selected characters
+        mission_giver = Character.query.get(mission_giver_id)
+        villain = Character.query.get(villain_id)
+        partner = Character.query.get(partner_id)
         
-        return redirect(url_for('character_selection'))
+        # Pick random additional character for choices
+        random_character = Character.query.order_by(db.func.random()).first()
+        
+        # Generate mission and first story segment with choices
+        mission_data = game_engine.create_full_mission(
+            user_id, mission_giver, villain, partner, random_character,
+            player_name, player_gender
+        )
+        
+        if mission_data:
+            return redirect(url_for('game'))
+        else:
+            flash("Failed to generate mission. Please try again.", "error")
+            return redirect(url_for('start_game'))
             
     except Exception as e:
         logging.error(f"Error starting game: {e}")
