@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}Mission in Progress - Disavowed{% endblock %}
+
+{% block content %}
+<div class="game-container">
+    <div class="container-fluid">
+        <div class="row g-0">
+            <!-- Scene/Character Image Column -->
+            <div class="col-lg-4 scene-column">
+                {% if scene_image and scene_image.image_url %}
+                    <div class="scene-image" style="background-image: url('{{ scene_image.image_url }}');">
+                        <div class="scene-overlay">
+                            {% if scene_image.name %}
+                                <h5 class="scene-title">{{ scene_image.name }}</h5>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% elif character and character.image_url %}
+                    <div class="character-image" style="background-image: url('{{ character.image_url }}');">
+                        <div class="character-overlay">
+                            <h5 class="character-title">{{ character.character_name }}</h5>
+                            <p class="character-role">{{ character.character_role|title }}</p>
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="placeholder-image">
+                        <i class="fas fa-eye fa-3x"></i>
+                        <p>Surveillance Active</p>
+                    </div>
+                {% endif %}
+            </div>
+            
+            <!-- Game Content Column -->
+            <div class="col-lg-8 game-content">
+                <!-- Currency Display -->
+                <div class="currency-bar">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0 text-light">
+                            <i class="fas fa-user-secret me-2"></i>Agent Status
+                        </h6>
+                        <div class="currency-display">
+                            {% for currency, amount in user_progress.currency_balances.items() %}
+                                <span class="currency-item" data-currency="{{ currency }}">
+                                    {{ currency }} {{ amount }}
+                                </span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Narrative Text -->
+                <div class="narrative-section">
+                    <div class="narrative-text">
+                        {{ current_node.narrative_text|safe }}
+                    </div>
+                </div>
+                
+                <!-- Choices Section -->
+                <div class="choices-section">
+                    <h5 class="choices-title">
+                        <i class="fas fa-crosshairs me-2"></i>Your Next Move
+                    </h5>
+                    
+                    <form method="POST" action="{{ url_for('make_choice') }}" id="choiceForm">
+                        <!-- AI Generated Choices -->
+                        {% for choice in choices %}
+                            <div class="choice-option" data-choice-id="{{ choice.id }}">
+                                <div class="choice-content">
+                                    <div class="choice-text">
+                                        {{ choice.choice_text }}
+                                    </div>
+                                    <div class="choice-cost">
+                                        {% if choice.currency_requirements %}
+                                            {% for currency, amount in choice.currency_requirements.items() %}
+                                                <span class="cost-badge">{{ currency }} {{ amount }}</span>
+                                            {% endfor %}
+                                        {% else %}
+                                            <span class="cost-badge free">FREE</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <button type="submit" name="choice_id" value="{{ choice.id }}" 
+                                        class="btn btn-outline-primary choice-btn"
+                                        {% if choice.currency_requirements %}
+                                            data-currency-check="{{ choice.id }}"
+                                        {% endif %}>
+                                    Select
+                                </button>
+                            </div>
+                        {% endfor %}
+                        
+                        <!-- Custom Diamond Choice -->
+                        <div class="custom-choice-section">
+                            <div class="custom-choice-header">
+                                <h6>
+                                    <i class="fas fa-gem me-2 text-warning"></i>Custom Action (💎 1)
+                                </h6>
+                                <p class="text-muted">Describe your own action for a premium cost</p>
+                            </div>
+                            
+                            <div class="input-group mb-3">
+                                <textarea class="form-control" name="custom_choice" id="customChoice" 
+                                         placeholder="Describe your custom action..." rows="2" maxlength="200"></textarea>
+                                <button type="submit" class="btn btn-warning" id="customChoiceBtn" disabled>
+                                    <i class="fas fa-gem me-2"></i>Execute
+                                </button>
+                            </div>
+                            
+                            <div id="customChoiceError" class="text-danger small d-none">
+                                Insufficient diamonds for custom action
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                
+                <!-- Progress Info -->
+                <div class="progress-info">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <small class="text-muted">
+                                <i class="fas fa-level-up-alt me-1"></i>Level {{ user_progress.level }}
+                            </small>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <small class="text-muted">
+                                <i class="fas fa-star me-1"></i>{{ user_progress.experience_points }} XP
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize game interface
+    initializeGameInterface();
+});
+</script>
+{% endblock %}

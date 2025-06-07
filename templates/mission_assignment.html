@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}Mission Assignment - Disavowed{% endblock %}
+
+{% block content %}
+<div class="mission-assignment-container">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <!-- Mission Giver Section -->
+                <div class="mission-giver-card">
+                    <div class="row g-0">
+                        <div class="col-md-4">
+                            {% if mission_giver.image_url %}
+                                <div class="giver-image" style="background-image: url('{{ mission_giver.image_url }}');"></div>
+                            {% else %}
+                                <div class="giver-placeholder">
+                                    <i class="fas fa-user-tie fa-4x"></i>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-8">
+                            <div class="mission-giver-info">
+                                <h3 class="giver-name">{{ mission_giver.character_name }}</h3>
+                                <p class="giver-role">{{ mission_giver.character_role|title }}</p>
+                                {% if mission_giver.description %}
+                                    <p class="giver-description">{{ mission_giver.description }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Mission Briefing -->
+                <div class="mission-briefing">
+                    <div class="briefing-header">
+                        <h2 class="mission-title">
+                            <span class="classified-stamp">CLASSIFIED</span>
+                            {{ mission.title }}
+                        </h2>
+                        <div class="mission-meta">
+                            <span class="difficulty-badge difficulty-{{ mission.difficulty }}">
+                                {{ mission.difficulty|upper }}
+                            </span>
+                            <span class="deadline-info">
+                                <i class="fas fa-clock me-1"></i>{{ mission.deadline }}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="mission-content">
+                        <div class="mission-description">
+                            <h5>Mission Brief</h5>
+                            <p>{{ mission.description }}</p>
+                        </div>
+                        
+                        <div class="mission-objective">
+                            <h5>Primary Objective</h5>
+                            <p>{{ mission.objective }}</p>
+                        </div>
+                        
+                        <div class="mission-reward">
+                            <h5>Compensation</h5>
+                            <div class="reward-amount">
+                                <span class="currency-large">{{ mission.reward_currency }} {{ mission.reward_amount }}</span>
+                                <small class="text-muted">upon successful completion</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Current Status -->
+                <div class="agent-status">
+                    <h5>
+                        <i class="fas fa-user-secret me-2"></i>Agent Resources
+                    </h5>
+                    <div class="currency-grid">
+                        {% for currency, amount in user_progress.currency_balances.items() %}
+                            <div class="currency-status">
+                                <span class="currency-symbol">{{ currency }}</span>
+                                <span class="currency-amount">{{ amount }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div class="mission-actions">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <a href="{{ url_for('accept_mission', mission_id=mission.id) }}" 
+                               class="btn btn-danger btn-lg w-100">
+                                <i class="fas fa-crosshairs me-2"></i>Accept Mission
+                            </a>
+                        </div>
+                        <div class="col-md-6">
+                            <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-lg w-100">
+                                <i class="fas fa-times me-2"></i>Decline
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Warning Notice -->
+                <div class="warning-notice">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Warning:</strong> This is a high-risk operation. Your agency will disavow 
+                        any knowledge of your actions. Proceed with extreme caution.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
