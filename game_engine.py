@@ -20,39 +20,110 @@ class GameEngine:
             'diamond': {'💎': 1}  # Premium choice
         }
     
-    def create_mission(self, user_id, mission_giver):
-        """Create a new mission for the user"""
+    def create_full_mission(self, user_id, mission_giver, villain, partner, random_character, player_name, player_gender):
+        """Create complete mission with story opening and choices"""
         try:
-            # Generate mission details using AI
-            mission_data = self.openai_integration.generate_mission(mission_giver)
+            # Generate mission and story using OpenAI with all character context
+            mission_story_data = self.openai_integration.generate_full_mission_story(
+                mission_giver, villain, partner, random_character, player_name, player_gender
+            )
+            
+            if not mission_story_data:
+                return None
             
             # Create mission record
             mission = Mission()
             mission.user_id = user_id
-            mission.title = mission_data.get('title', 'Classified Operation')
-            mission.description = mission_data.get('description', 'A dangerous espionage mission')
+            mission.title = mission_story_data.get('mission_title', 'Classified Operation')
+            mission.description = mission_story_data.get('mission_description', 'Espionage mission')
             mission.giver_id = mission_giver.id
-            mission.objective = mission_data.get('objective', 'Complete the mission objectives')
-            mission.difficulty = mission_data.get('difficulty', 'medium')
+            mission.target_id = villain.id
+            mission.objective = mission_story_data.get('objective', 'Complete mission objectives')
+            mission.difficulty = mission_story_data.get('difficulty', 'medium')
             mission.reward_currency = '💎'
             mission.reward_amount = random.randint(2, 5)
-            mission.deadline = mission_data.get('deadline', '48 hours')
+            mission.deadline = mission_story_data.get('deadline', '48 hours')
             
             db.session.add(mission)
-            db.session.commit()
+            db.session.flush()
+            
+            # Create story generation record
+            story = StoryGeneration()
+            story.primary_conflict = mission.objective
+            story.setting = mission_story_data.get('setting', 'Various espionage locations')
+            story.narrative_style = 'Action-packed espionage thriller'
+            story.mood = 'Tense and suspenseful'
+            story.generated_story = {
+                'mission_id': mission.id,
+                'characters': {
+                    'mission_giver': mission_giver.id,
+                    'villain': villain.id,
+                    'partner': partner.id,
+                    'random': random_character.id
+                },
+                'player': {'name': player_name, 'gender': player_gender}
+            }
+            db.session.add(story)
+            db.session.flush()
+            
+            # Create initial story node with narrative
+            story_node = StoryNode()
+            story_node.story_id = story.id
+            story_node.narrative_text = mission_story_data.get('opening_narrative', 'Mission begins...')
+            story_node.character_id = mission_giver.id
+            story_node.is_endpoint = False
+            story_node.branch_metadata = {
+                'mission_id': mission.id,
+                'node_type': 'opening',
+                'characters_present': [mission_giver.id, partner.id]
+            }
+            db.session.add(story_node)
+            db.session.flush()
+            
+            # Create the 3 choices with currency costs
+            choices_data = mission_story_data.get('choices', [])
+            cost_tiers = ['low', 'medium', 'high']
+            
+            for i, choice_data in enumerate(choices_data[:3]):
+                tier = cost_tiers[i] if i < len(cost_tiers) else 'medium'
+                currency_symbol = random.choice(list(self.currency_tiers[tier].keys()))
+                currency_cost = self.currency_tiers[tier][currency_symbol]
+                
+                choice = StoryChoice()
+                choice.node_id = story_node.id
+                choice.choice_text = choice_data.get('text', 'Take action')
+                choice.currency_requirements = {currency_symbol: currency_cost}
+                choice.choice_metadata = {
+                    'tier': tier,
+                    'ai_generated': True,
+                    'character_mentioned': choice_data.get('character_used', '')
+                }
+                db.session.add(choice)
             
             # Update user progress
             user_progress = UserProgress.query.filter_by(user_id=user_id).first()
             if user_progress:
+                user_progress.current_node_id = story_node.id
+                user_progress.current_story_id = story.id
+                
+                # Update active missions list
                 active_missions = user_progress.active_missions or []
                 active_missions.append(mission.id)
                 user_progress.active_missions = active_missions
-                db.session.commit()
+                
+                # Add encountered characters
+                encountered = user_progress.encountered_characters or []
+                new_chars = [mission_giver.id, villain.id, partner.id, random_character.id]
+                for char_id in new_chars:
+                    if char_id not in encountered:
+                        encountered.append(char_id)
+                user_progress.encountered_characters = encountered
             
+            db.session.commit()
             return mission
             
         except Exception as e:
-            logging.error(f"Error creating mission: {e}")
+            logging.error(f"Error creating full mission: {e}")
             db.session.rollback()
             return None
     

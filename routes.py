@@ -21,67 +21,133 @@ def index():
         logging.error(f"Error loading index page: {e}")
         return render_template('index.html', characters=[], error="Failed to load character data")
 
-@app.route('/start_game')
+@app.route('/start_game', methods=['GET', 'POST'])
 def start_game():
-    """Initialize a new game session"""
+    """Player setup - name, gender, character selection"""
     try:
+        if request.method == 'GET':
+            # Show setup form
+            return render_template('start_game.html')
+        
+        # Process form submission
+        player_name = request.form.get('player_name', '').strip()
+        player_gender = request.form.get('player_gender', 'they/them')
+        
+        if not player_name:
+            flash("Please enter your name.", "error")
+            return render_template('start_game.html')
+        
         # Generate or get user ID
         if 'user_id' not in session:
             session['user_id'] = str(uuid.uuid4())
         
         user_id = session['user_id']
+        session['player_name'] = player_name
+        session['player_gender'] = player_gender
         
         # Get or create user progress
         user_progress = UserProgress.query.filter_by(user_id=user_id).first()
         if not user_progress:
-            user_progress = UserProgress(user_id=user_id)
+            user_progress = UserProgress()
+            user_progress.user_id = user_id
+            user_progress.currency_balances = {"💎": 5, "💵": 50, "💷": 40, "💶": 45, "💴": 500}
+            user_progress.choice_history = []
+            user_progress.achievements_earned = []
+            user_progress.encountered_characters = []
+            user_progress.active_missions = []
+            user_progress.completed_missions = []
+            user_progress.failed_missions = []
+            user_progress.active_plot_arcs = []
+            user_progress.completed_plot_arcs = []
+            user_progress.game_state = {'player_name': player_name, 'player_gender': player_gender}
             db.session.add(user_progress)
             db.session.commit()
         
-        # If user has no current mission, assign one
-        if not user_progress.active_missions:
-            return redirect(url_for('mission_assignment'))
-        else:
-            return redirect(url_for('game'))
+        return redirect(url_for('character_selection'))
             
     except Exception as e:
         logging.error(f"Error starting game: {e}")
         flash("Failed to start game. Please try again.", "error")
         return redirect(url_for('index'))
 
-@app.route('/mission_assignment')
-def mission_assignment():
-    """Assign a new mission to the player"""
+@app.route('/character_selection', methods=['GET', 'POST'])
+def character_selection():
+    """Character selection flow: mission giver -> villain -> partner"""
     try:
         user_id = session.get('user_id')
         if not user_id:
             return redirect(url_for('start_game'))
         
-        # Get a random mission giver character
-        mission_giver = Character.query.filter_by(character_role='mission-giver').first()
-        if not mission_giver:
-            # Fallback to any character
-            mission_giver = Character.query.first()
+        if request.method == 'GET':
+            # Show character selection interface
+            mission_givers = Character.query.filter_by(character_role='mission-giver').all()
+            villains = Character.query.filter_by(character_role='villain').all()
+            partners = Character.query.filter(Character.character_role.in_(['neutral', 'undetermined'])).all()
+            
+            return render_template('character_selection.html',
+                                 mission_givers=mission_givers,
+                                 villains=villains,
+                                 partners=partners)
         
-        if not mission_giver:
-            flash("No characters available for mission assignment.", "error")
-            return redirect(url_for('index'))
+        # Process character selections
+        mission_giver_id = request.form.get('mission_giver_id')
+        villain_id = request.form.get('villain_id')
+        partner_id = request.form.get('partner_id')
         
-        # Create a new mission using the game engine
-        mission = game_engine.create_mission(user_id, mission_giver)
+        if not all([mission_giver_id, villain_id, partner_id]):
+            flash("Please select all required characters.", "error")
+            return redirect(url_for('character_selection'))
         
-        # Get user progress for currency display
-        user_progress = UserProgress.query.filter_by(user_id=user_id).first()
+        # Store selections in session
+        session['mission_giver_id'] = mission_giver_id
+        session['villain_id'] = villain_id
+        session['partner_id'] = partner_id
         
-        return render_template('mission_assignment.html', 
-                             mission=mission, 
-                             mission_giver=mission_giver,
-                             user_progress=user_progress)
+        return redirect(url_for('generate_mission'))
                              
     except Exception as e:
-        logging.error(f"Error in mission assignment: {e}")
-        flash("Failed to assign mission. Please try again.", "error")
-        return redirect(url_for('index'))
+        logging.error(f"Error in character selection: {e}")
+        flash("Failed to process character selection.", "error")
+        return redirect(url_for('start_game'))
+
+@app.route('/generate_mission')
+def generate_mission():
+    """Generate mission using OpenAI with selected characters"""
+    try:
+        user_id = session.get('user_id')
+        mission_giver_id = session.get('mission_giver_id')
+        villain_id = session.get('villain_id')
+        partner_id = session.get('partner_id')
+        player_name = session.get('player_name')
+        player_gender = session.get('player_gender')
+        
+        if not all([user_id, mission_giver_id, villain_id, partner_id]):
+            return redirect(url_for('character_selection'))
+        
+        # Get selected characters
+        mission_giver = Character.query.get(mission_giver_id)
+        villain = Character.query.get(villain_id)
+        partner = Character.query.get(partner_id)
+        
+        # Pick random additional character for choices
+        random_character = Character.query.order_by(db.func.random()).first()
+        
+        # Generate mission and first story segment with choices
+        mission_data = game_engine.create_full_mission(
+            user_id, mission_giver, villain, partner, random_character,
+            player_name, player_gender
+        )
+        
+        if mission_data:
+            return redirect(url_for('game'))
+        else:
+            flash("Failed to generate mission. Please try again.", "error")
+            return redirect(url_for('character_selection'))
+                             
+    except Exception as e:
+        logging.error(f"Error generating mission: {e}")
+        flash("Failed to generate mission. Please try again.", "error")
+        return redirect(url_for('character_selection'))
 
 @app.route('/accept_mission/<int:mission_id>')
 def accept_mission(mission_id):
