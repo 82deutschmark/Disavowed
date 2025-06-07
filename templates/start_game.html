@@ -28,8 +28,8 @@
                         <input type="radio" name="mission_giver_id" value="{{ giver.id }}" id="giver_{{ giver.id }}" required>
                         <label for="giver_{{ giver.id }}">
                             <strong>{{ giver.character_name }}</strong><br>
-                            {% if giver.character_traits %}
-                                <small>{{ giver.character_traits[:3] | join(', ') }}</small>
+                            {% if giver.display_traits %}
+                                <small>{{ giver.display_traits }}</small>
                             {% endif %}
                         </label>
                     </div>
@@ -44,8 +44,8 @@
                         <input type="radio" name="villain_id" value="{{ villain.id }}" id="villain_{{ villain.id }}" required>
                         <label for="villain_{{ villain.id }}">
                             <strong>{{ villain.character_name }}</strong><br>
-                            {% if villain.character_traits %}
-                                <small>{{ villain.character_traits[:3] | join(', ') }}</small>
+                            {% if villain.display_traits %}
+                                <small>{{ villain.display_traits }}</small>
                             {% endif %}
                         </label>
                     </div>
@@ -60,8 +60,8 @@
                         <input type="radio" name="partner_id" value="{{ partner.id }}" id="partner_{{ partner.id }}" required>
                         <label for="partner_{{ partner.id }}">
                             <strong>{{ partner.character_name }}</strong><br>
-                            {% if partner.character_traits %}
-                                <small>{{ partner.character_traits[:3] | join(', ') }}</small>
+                            {% if partner.display_traits %}
+                                <small>{{ partner.display_traits }}</small>
                             {% endif %}
                         </label>
                     </div>

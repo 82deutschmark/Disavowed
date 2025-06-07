@@ -31,6 +31,13 @@ def start_game():
             villains = Character.query.filter_by(character_role='villain').all()
             partners = Character.query.filter(Character.character_role.in_(['neutral', 'undetermined'])).all()
             
+            # Pre-process character traits for display
+            for char in mission_givers + villains + partners:
+                if char.character_traits and isinstance(char.character_traits, list):
+                    char.display_traits = ', '.join(char.character_traits[:3])
+                else:
+                    char.display_traits = ''
+            
             return render_template('start_game.html',
                                  mission_givers=mission_givers,
                                  villains=villains,
