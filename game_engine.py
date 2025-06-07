@@ -124,16 +124,15 @@ class GameEngine:
                 currency_symbol = random.choice(list(self.currency_tiers[tier].keys()))
                 currency_cost = self.currency_tiers[tier][currency_symbol]
                 
-                choice = StoryChoice(
-                    node_id=node.id,
-                    choice_text=choice_data['text'],
-                    currency_requirements={currency_symbol: currency_cost},
-                    choice_metadata={
-                        'tier': tier,
-                        'ai_generated': True,
-                        'consequence': choice_data.get('consequence', '')
-                    }
-                )
+                choice = StoryChoice()
+                choice.node_id = node.id
+                choice.choice_text = choice_data['text']
+                choice.currency_requirements = {currency_symbol: currency_cost}
+                choice.choice_metadata = {
+                    'tier': tier,
+                    'ai_generated': True,
+                    'consequence': choice_data.get('consequence', '')
+                }
                 db.session.add(choice)
                 choices.append(choice)
             
