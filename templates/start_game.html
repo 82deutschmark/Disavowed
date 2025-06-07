@@ -28,7 +28,9 @@
                         <input type="radio" name="mission_giver_id" value="{{ giver.id }}" id="giver_{{ giver.id }}" required>
                         <label for="giver_{{ giver.id }}">
                             <strong>{{ giver.character_name }}</strong><br>
-                            <small>{{ giver.description[:100] if giver.description else 'No description' }}...</small>
+                            {% if giver.character_traits %}
+                                <small>{{ giver.character_traits[:3] | join(', ') }}</small>
+                            {% endif %}
                         </label>
                     </div>
                 </div>
@@ -42,7 +44,9 @@
                         <input type="radio" name="villain_id" value="{{ villain.id }}" id="villain_{{ villain.id }}" required>
                         <label for="villain_{{ villain.id }}">
                             <strong>{{ villain.character_name }}</strong><br>
-                            <small>{{ villain.description[:100] if villain.description else 'No description' }}...</small>
+                            {% if villain.character_traits %}
+                                <small>{{ villain.character_traits[:3] | join(', ') }}</small>
+                            {% endif %}
                         </label>
                     </div>
                 </div>
@@ -56,7 +60,9 @@
                         <input type="radio" name="partner_id" value="{{ partner.id }}" id="partner_{{ partner.id }}" required>
                         <label for="partner_{{ partner.id }}">
                             <strong>{{ partner.character_name }}</strong><br>
-                            <small>{{ partner.description[:100] if partner.description else 'No description' }}...</small>
+                            {% if partner.character_traits %}
+                                <small>{{ partner.character_traits[:3] | join(', ') }}</small>
+                            {% endif %}
                         </label>
                     </div>
                 </div>
