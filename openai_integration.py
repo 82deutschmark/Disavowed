@@ -10,6 +10,68 @@ class OpenAIIntegration:
         self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         self.model = "gpt-4.1-nano-2025-04-14"
     
+    def generate_full_mission_story(self, mission_giver, villain, partner, random_character, player_name, player_gender):
+        """Generate complete mission with story opening and 3 choices"""
+        try:
+            pronouns = {'he/him': 'he', 'she/her': 'she', 'they/them': 'they'}.get(player_gender, 'they')
+            
+            prompt = f"""You are creating an espionage CYOA game scenario. Generate a complete mission briefing and opening story segment with exactly 3 choices.
+
+CHARACTERS:
+- Player: {player_name} (pronouns: {pronouns})
+- Mission Giver: {mission_giver.character_name} - {mission_giver.description}
+- Target/Villain: {villain.character_name} - {villain.description}  
+- Partner: {partner.character_name} - {partner.description}
+- Additional Character: {random_character.character_name} - {random_character.description}
+
+REQUIREMENTS:
+1. Create a mission where {mission_giver.character_name} briefs {player_name} to target {villain.character_name}
+2. {partner.character_name} is assigned as the partner for this mission
+3. Write an opening narrative that establishes the mission scenario
+4. Generate exactly 3 distinct choices, each incorporating one of these characters: {partner.character_name}, {random_character.character_name}, or another creative option
+5. Each choice should represent different risk levels and approaches (cautious, moderate, aggressive)
+6. Make it action-packed espionage with stakes and tension
+
+RESPONSE FORMAT (JSON):
+{{
+    "mission_title": "Compelling mission title",
+    "mission_description": "Brief mission summary", 
+    "objective": "Clear mission objective",
+    "difficulty": "medium",
+    "deadline": "48 hours",
+    "setting": "Location/environment description",
+    "opening_narrative": "2-3 paragraph story opening that introduces the mission briefing and sets up the choices",
+    "choices": [
+        {{
+            "text": "Choice 1 - mention {partner.character_name} specifically in this action",
+            "character_used": "{partner.character_name}",
+            "risk_level": "low"
+        }},
+        {{
+            "text": "Choice 2 - mention {random_character.character_name} specifically in this action", 
+            "character_used": "{random_character.character_name}",
+            "risk_level": "medium"
+        }},
+        {{
+            "text": "Choice 3 - aggressive solo action or creative approach",
+            "character_used": "solo",
+            "risk_level": "high"
+        }}
+    ]
+}}"""
+            
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"}
+            )
+            
+            return json.loads(response.choices[0].message.content)
+            
+        except Exception as e:
+            logging.error(f"Error generating full mission story: {e}")
+            return None
+
     def generate_mission(self, mission_giver):
         """Generate a mission briefing from a character"""
         try:

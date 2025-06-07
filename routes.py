@@ -30,12 +30,14 @@ def start_game():
             return render_template('start_game.html')
         
         # Process form submission
-        player_name = request.form.get('player_name', '').strip()
+        player_name = request.form.get('player_name')
         player_gender = request.form.get('player_gender', 'they/them')
         
-        if not player_name:
+        if not player_name or not player_name.strip():
             flash("Please enter your name.", "error")
             return render_template('start_game.html')
+        
+        player_name = player_name.strip()
         
         # Generate or get user ID
         if 'user_id' not in session:

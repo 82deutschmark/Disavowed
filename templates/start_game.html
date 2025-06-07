@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Player Setup - Disavowed{% endblock %}
+{% block content %}
+<div class="container mt-5">
+    <h2>Agent Profile Setup</h2>
+    <form method="POST">
+        <div class="mb-3">
+            <label for="player_name" class="form-label">Agent Name</label>
+            <input type="text" class="form-control" id="player_name" name="player_name" required>
+        </div>
+        <div class="mb-3">
+            <label for="player_gender" class="form-label">Pronouns</label>
+            <select class="form-control" id="player_gender" name="player_gender">
+                <option value="they/them">They/Them</option>
+                <option value="he/him">He/Him</option>
+                <option value="she/her">She/Her</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Begin Mission Selection</button>
+    </form>
+</div>
+{% endblock %}
