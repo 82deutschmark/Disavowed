@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Buy Diamonds - Disavowed: Espionage CYOA{% endblock %}
+
+{% block content %}
+<div class="container mt-5 pt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="text-center mb-5">
+                <h1 class="display-4 text-primary">
+                    <i class="fas fa-gem me-3"></i>Diamond Store
+                </h1>
+                <p class="lead text-muted">Enhance your espionage missions with premium diamonds</p>
+            </div>
+
+            <div class="row g-4">
+                {% for package_id, package in packages.items() %}
+                <div class="col-md-4">
+                    <div class="card h-100 shadow-sm border-0">
+                        <div class="card-header bg-gradient text-white text-center {% if package_id == 'starter' %}bg-success{% elif package_id == 'premium' %}bg-primary{% else %}bg-warning{% endif %}">
+                            <h4 class="mb-0">
+                                {% if package_id == 'starter' %}
+                                    <i class="fas fa-star me-2"></i>Starter Pack
+                                {% elif package_id == 'premium' %}
+                                    <i class="fas fa-crown me-2"></i>Premium Pack
+                                {% else %}
+                                    <i class="fas fa-gem me-2"></i>Ultimate Pack
+                                {% endif %}
+                            </h4>
+                        </div>
+                        <div class="card-body text-center">
+                            <div class="display-4 text-primary mb-3">
+                                💎 {{ package.diamonds }}
+                            </div>
+                            <h5 class="text-success">${{ "%.2f"|format(package.price_cents / 100) }}</h5>
+                            <p class="text-muted mb-4">
+                                {% if package_id == 'starter' %}
+                                    Perfect for new agents starting their missions
+                                {% elif package_id == 'premium' %}
+                                    Ideal for experienced operatives
+                                {% else %}
+                                    Maximum firepower for elite agents
+                                {% endif %}
+                            </p>
+                            
+                            <form method="POST" action="{{ url_for('payments.create_checkout_session') }}">
+                                <input type="hidden" name="package" value="{{ package_id }}">
+                                <button type="submit" class="btn btn-lg btn-{% if package_id == 'starter' %}success{% elif package_id == 'premium' %}primary{% else %}warning{% endif %} w-100">
+                                    <i class="fas fa-shopping-cart me-2"></i>Purchase Now
+                                </button>
+                            </form>
+                        </div>
+                        <div class="card-footer bg-light text-center">
+                            <small class="text-muted">
+                                <i class="fas fa-shield-alt me-1"></i>Secure payment via Stripe
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="row mt-5">
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <h5><i class="fas fa-info-circle me-2"></i>What can you do with diamonds?</h5>
+                        <ul class="mb-0">
+                            <li>Create custom story choices during missions</li>
+                            <li>Unlock premium character interactions</li>
+                            <li>Access exclusive mission storylines</li>
+                            <li>Purchase in-game currencies for special options</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-center mt-4">
+                <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Game
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

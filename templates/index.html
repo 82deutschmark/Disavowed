@@ -21,14 +21,41 @@
                     </p>
                     
                     <div class="hero-actions">
-                        <a href="{{ url_for('start_game') }}" class="btn btn-danger btn-lg me-3">
-                            <i class="fas fa-play me-2"></i>Start Mission
-                        </a>
-                        {% if session.user_id %}
-                            <a href="{{ url_for('game') }}" class="btn btn-outline-light btn-lg">
-                                <i class="fas fa-forward me-2"></i>Continue
-                            </a>
+                        {% if current_user.is_authenticated %}
+                            <div class="mb-4">
+                                <div class="alert alert-success d-inline-block">
+                                    <i class="fas fa-user-check me-2"></i>Welcome back, Agent {{ current_user.name }}!
+                                    <br><small><i class="fas fa-gem me-1"></i>{{ current_user.diamonds }} diamonds available</small>
+                                </div>
+                            </div>
+                        {% else %}
+                            <div class="mb-4">
+                                <div class="alert alert-warning d-inline-block">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>Playing as Guest
+                                    <br><small>Login to save your progress permanently</small>
+                                </div>
+                            </div>
                         {% endif %}
+                        
+                        <div class="d-flex flex-wrap gap-3">
+                            <a href="{{ url_for('start_game') }}" class="btn btn-danger btn-lg">
+                                <i class="fas fa-play me-2"></i>Start Mission
+                            </a>
+                            {% if session.user_id %}
+                                <a href="{{ url_for('game') }}" class="btn btn-outline-light btn-lg">
+                                    <i class="fas fa-forward me-2"></i>Continue
+                                </a>
+                            {% endif %}
+                            {% if not current_user.is_authenticated %}
+                                <a href="{{ url_for('google_auth.login') }}" class="btn btn-success btn-lg">
+                                    <i class="fab fa-google me-2"></i>Login & Save
+                                </a>
+                            {% else %}
+                                <a href="{{ url_for('payments.buy_diamonds') }}" class="btn btn-warning btn-lg">
+                                    <i class="fas fa-gem me-2"></i>Buy Diamonds
+                                </a>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
             </div>

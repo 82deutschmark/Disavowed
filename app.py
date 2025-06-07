@@ -49,5 +49,9 @@ with app.app_context():
     from google_auth import google_auth
     app.register_blueprint(google_auth)
     
+    # Import and register Stripe payments blueprint
+    from stripe_payments import payments
+    app.register_blueprint(payments)
+    
     # Create tables if they don't exist
     db.create_all()

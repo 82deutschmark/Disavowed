@@ -32,6 +32,9 @@
                         <span class="navbar-text me-3">
                             <i class="fas fa-gem me-1"></i>{{ current_user.diamonds }} 💎
                         </span>
+                        <a class="nav-link" href="{{ url_for('payments.buy_diamonds') }}">
+                            <i class="fas fa-shopping-cart me-1"></i>Buy Diamonds
+                        </a>
                         <span class="navbar-text me-3">
                             Welcome, {{ current_user.name }}!
                         </span>
