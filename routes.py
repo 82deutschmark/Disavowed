@@ -78,6 +78,7 @@ def character_selection():
     try:
         user_id = session.get('user_id')
         if not user_id:
+            logging.error("No user_id in session")
             return redirect(url_for('start_game'))
         
         if request.method == 'GET':
