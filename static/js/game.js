@@ -13,21 +13,17 @@ class GameInterface {
     }
 
     bindEvents() {
-        // Choice button validation
-        document.querySelectorAll('[data-currency-check]').forEach(button => {
-            button.addEventListener('click', (e) => this.validateChoice(e));
-        });
-
         // Custom choice input handling
         const customChoiceInput = document.getElementById('customChoice');
         if (customChoiceInput) {
             customChoiceInput.addEventListener('input', () => this.validateCustomChoice());
         }
 
-        // Form submission handling
+        // Simple form submission - no interference
         const choiceForm = document.getElementById('choiceForm');
         if (choiceForm) {
-            choiceForm.addEventListener('submit', (e) => this.handleFormSubmission(e));
+            // Allow normal form submission without validation interference
+            console.log('Choice form found, ready for submission');
         }
     }
 
