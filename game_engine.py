@@ -31,7 +31,25 @@ class GameEngine:
             if not mission_story_data:
                 return None
             
-            # Create mission record
+            # Create story generation record first
+            story = StoryGeneration()
+            story.primary_conflict = mission_story_data.get('objective', 'Complete mission objectives')
+            story.setting = mission_story_data.get('setting', 'Various espionage locations')
+            story.narrative_style = 'Action-packed espionage thriller'
+            story.mood = 'Tense and suspenseful'
+            story.generated_story = {
+                'characters': {
+                    'mission_giver': mission_giver.id,
+                    'villain': villain.id,
+                    'partner': partner.id,
+                    'random': random_character.id
+                },
+                'player': {'name': player_name, 'gender': player_gender}
+            }
+            db.session.add(story)
+            db.session.flush()
+            
+            # Create mission record with story_id link
             mission = Mission()
             mission.user_id = user_id
             mission.title = mission_story_data.get('mission_title', 'Classified Operation')
@@ -43,27 +61,9 @@ class GameEngine:
             mission.reward_currency = '💎'
             mission.reward_amount = random.randint(2, 5)
             mission.deadline = mission_story_data.get('deadline', '48 hours')
+            mission.story_id = story.id  # Critical link
             
             db.session.add(mission)
-            db.session.flush()
-            
-            # Create story generation record
-            story = StoryGeneration()
-            story.primary_conflict = mission.objective
-            story.setting = mission_story_data.get('setting', 'Various espionage locations')
-            story.narrative_style = 'Action-packed espionage thriller'
-            story.mood = 'Tense and suspenseful'
-            story.generated_story = {
-                'mission_id': mission.id,
-                'characters': {
-                    'mission_giver': mission_giver.id,
-                    'villain': villain.id,
-                    'partner': partner.id,
-                    'random': random_character.id
-                },
-                'player': {'name': player_name, 'gender': player_gender}
-            }
-            db.session.add(story)
             db.session.flush()
             
             # Create initial story node with narrative

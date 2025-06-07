@@ -70,8 +70,30 @@
             </div>
         </div>
         <div class="mt-4">
-            <button type="submit" class="btn btn-primary btn-lg">Generate Mission</button>
+            <button type="submit" class="btn btn-primary btn-lg" id="generateBtn">
+                <span class="btn-text">Generate Mission</span>
+                <span class="spinner-border spinner-border-sm d-none" role="status"></span>
+                <span class="loading-text d-none">Creating your story...</span>
+            </button>
         </div>
     </form>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const generateBtn = document.getElementById('generateBtn');
+    const btnText = generateBtn.querySelector('.btn-text');
+    const spinner = generateBtn.querySelector('.spinner-border');
+    const loadingText = generateBtn.querySelector('.loading-text');
+    
+    form.addEventListener('submit', function() {
+        // Show loading state
+        btnText.classList.add('d-none');
+        spinner.classList.remove('d-none');
+        loadingText.classList.remove('d-none');
+        generateBtn.disabled = true;
+    });
+});
+</script>
 {% endblock %}
