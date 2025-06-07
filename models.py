@@ -144,7 +144,7 @@ class UserProgress(db.Model):
     # Relationships
     current_node = relationship("StoryNode", foreign_keys=[current_node_id])
     current_story = relationship("StoryGeneration", foreign_keys=[current_story_id])
-    authenticated_user = relationship("User", foreign_keys=[authenticated_user_id])
+    authenticated_user = relationship("User", foreign_keys=[authenticated_user_id], back_populates="progress")
 
 class Mission(db.Model):
     __tablename__ = 'mission'
