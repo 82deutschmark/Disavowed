@@ -18,21 +18,46 @@ class OpenAIIntegration:
             
             # Extract character info properly
             def get_character_info(char):
-                desc = char.description or "No physical description available"
+                # Use description if available, otherwise note they have an image
+                if char.description:
+                    desc = char.description
+                elif char.image_url:
+                    desc = f"[See character image at {char.image_url}]"
+                else:
+                    desc = "Character appearance not described"
+                
+                # Extract traits
+                traits = ""
+                if char.character_traits:
+                    if isinstance(char.character_traits, dict):
+                        # Handle dict format like {'cunning': '', 'strategic': ''}
+                        trait_list = []
+                        for k, v in char.character_traits.items():
+                            if v and v.strip():
+                                trait_list.append(f"{k}: {v}")
+                            else:
+                                trait_list.append(k)
+                        traits = ", ".join(trait_list)
+                    elif isinstance(char.character_traits, list):
+                        traits = ", ".join(char.character_traits)
+                    else:
+                        traits = str(char.character_traits)
+                
+                # Extract backstory
                 backstory = ""
                 if char.backstory:
                     if isinstance(char.backstory, str):
-                        try:
-                            backstory_data = json_lib.loads(char.backstory)
-                            if isinstance(backstory_data, list):
-                                backstory = " ".join(backstory_data)
-                            else:
-                                backstory = str(backstory_data)
-                        except:
-                            backstory = char.backstory
+                        backstory = char.backstory
                     else:
                         backstory = str(char.backstory)
-                return f"{desc} Background: {backstory}"
+                
+                result = desc
+                if traits:
+                    result += f" TRAITS: {traits}."
+                if backstory:
+                    result += f" BACKSTORY: {backstory}"
+                
+                return result
             
             mission_giver_info = get_character_info(mission_giver)
             villain_info = get_character_info(villain)  
