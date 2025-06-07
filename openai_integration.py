@@ -7,10 +7,8 @@ class OpenAIIntegration:
     """Integration with OpenAI for dynamic story generation"""
     
     def __init__(self):
-        # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
-        # do not change this unless explicitly requested by the user
         self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        self.model = "gpt-4o"
+        self.model = "gpt-4.1-nano-2025-04-14"
     
     def generate_mission(self, mission_giver):
         """Generate a mission briefing from a character"""
@@ -43,7 +41,7 @@ class OpenAIIntegration:
                 response_format={"type": "json_object"}
             )
             
-            return json.loads(response.choices[0].message.content)
+            return json.loads(response.choices[0].message.content or "{}")
             
         except Exception as e:
             logging.error(f"Error generating mission: {e}")
@@ -83,33 +81,44 @@ class OpenAIIntegration:
             
         except Exception as e:
             logging.error(f"Error generating story opening: {e}")
-            return f"Your handler {character_name} slides a dossier across the table. The mission is simple but dangerous: {mission.description}. Time is running out, and you're the only agent available. What's your first move?"
+            handler_name = mission_giver.character_name if mission_giver else "Your Handler"
+            return f"Your handler {handler_name} slides a dossier across the table. The mission is simple but dangerous: {mission.description}. Time is running out, and you're the only agent available. What's your first move?"
     
-    def generate_choices(self, current_narrative, character, game_state):
-        """Generate 3 AI choices for the current narrative"""
+    def generate_choices(self, current_narrative, character, game_state, available_characters=None):
+        """Generate 3 AI choices for the current narrative, each incorporating a random character"""
         try:
             character_info = ""
             if character:
                 character_info = f"Current character: {character.character_name} ({character.character_role})"
+            
+            # Include available characters for incorporation into choices
+            character_pool = ""
+            if available_characters:
+                character_pool = f"""
+Available characters to incorporate into choices:
+{chr(10).join([f"- {char.character_name}: {char.description[:100]}..." for char in available_characters[:6]])}
+"""
             
             prompt = f"""You are generating choices for an irreverent espionage CYOA game.
             
             Current narrative: {current_narrative}
             {character_info}
             Game context: {json.dumps(game_state) if game_state else 'Starting mission'}
+            {character_pool}
             
             Generate exactly 3 distinct choices that:
             1. Fit the espionage theme with bold, risky options
             2. Have different risk/reward levels (cautious, moderate, aggressive)
-            3. Each choice should be 1-2 sentences, actionable and specific
-            4. Include potential consequences for each choice
+            3. Each choice should incorporate one of the available characters as an ally/contact/helper
+            4. Each choice should be 1-2 sentences, actionable and specific
+            5. Include potential consequences for each choice
             
             Respond with JSON in this exact format:
             {{
                 "choices": [
-                    {{"text": "Choice 1 text", "consequence": "Brief description of likely outcome"}},
-                    {{"text": "Choice 2 text", "consequence": "Brief description of likely outcome"}},
-                    {{"text": "Choice 3 text", "consequence": "Brief description of likely outcome"}}
+                    {{"text": "Choice 1 text mentioning character name", "consequence": "Brief description of likely outcome", "character_used": "Character Name"}},
+                    {{"text": "Choice 2 text mentioning character name", "consequence": "Brief description of likely outcome", "character_used": "Character Name"}},
+                    {{"text": "Choice 3 text mentioning character name", "consequence": "Brief description of likely outcome", "character_used": "Character Name"}}
                 ]
             }}"""
             
@@ -119,8 +128,11 @@ class OpenAIIntegration:
                 response_format={"type": "json_object"}
             )
             
-            result = json.loads(response.choices[0].message.content)
-            return result.get("choices", [])
+            content = response.choices[0].message.content
+            if content:
+                result = json.loads(content)
+                return result.get("choices", [])
+            return []
             
         except Exception as e:
             logging.error(f"Error generating choices: {e}")

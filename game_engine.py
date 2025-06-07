@@ -104,11 +104,18 @@ class GameEngine:
     def generate_choices_for_node(self, node, user_progress):
         """Generate 4 choices for a story node (3 AI + 1 custom)"""
         try:
+            # Get random neutral/undefined characters from database for choices
+            from models import Character
+            available_characters = Character.query.filter(
+                Character.character_role.in_(['neutral', 'undetermined'])
+            ).order_by(db.func.random()).limit(6).all()
+            
             # Generate 3 AI choices with different cost tiers
             ai_choices_data = self.openai_integration.generate_choices(
                 node.narrative_text, 
                 node.character, 
-                user_progress.game_state
+                user_progress.game_state,
+                available_characters
             )
             
             choices = []
