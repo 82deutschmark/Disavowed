@@ -185,7 +185,7 @@ def accept_mission(mission_id):
         flash("Failed to accept mission. Please try again.", "error")
         return redirect(url_for('mission_assignment'))
 
-@app.route('/game')
+@app.route('/game', methods=['GET'])
 def game():
     """Main game interface"""
     try:
@@ -195,7 +195,7 @@ def game():
         
         user_progress = UserProgress.query.filter_by(user_id=user_id).first()
         if not user_progress or not user_progress.current_node_id:
-            return redirect(url_for('mission_assignment'))
+            return redirect(url_for('start_game'))
         
         current_node = StoryNode.query.get(user_progress.current_node_id)
         if not current_node:

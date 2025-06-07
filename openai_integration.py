@@ -13,21 +13,45 @@ class OpenAIIntegration:
     def generate_full_mission_story(self, mission_giver, villain, partner, random_character, player_name, player_gender):
         """Generate complete mission with story opening and 3 choices"""
         try:
+            import json as json_lib
             pronouns = {'he/him': 'he', 'she/her': 'she', 'they/them': 'they'}.get(player_gender, 'they')
+            
+            # Extract character info properly
+            def get_character_info(char):
+                desc = char.description or "No physical description available"
+                backstory = ""
+                if char.backstory:
+                    if isinstance(char.backstory, str):
+                        try:
+                            backstory_data = json_lib.loads(char.backstory)
+                            if isinstance(backstory_data, list):
+                                backstory = " ".join(backstory_data)
+                            else:
+                                backstory = str(backstory_data)
+                        except:
+                            backstory = char.backstory
+                    else:
+                        backstory = str(char.backstory)
+                return f"{desc} Background: {backstory}"
+            
+            mission_giver_info = get_character_info(mission_giver)
+            villain_info = get_character_info(villain)  
+            partner_info = get_character_info(partner)
+            random_info = get_character_info(random_character)
             
             prompt = f"""You are creating an espionage CYOA game scenario. Generate a complete mission briefing and opening story segment with exactly 3 choices.
 
 CHARACTERS:
 - Player: {player_name} (pronouns: {pronouns})
-- Mission Giver: {mission_giver.character_name} - {mission_giver.description}
-- Target/Villain: {villain.character_name} - {villain.description}  
-- Partner: {partner.character_name} - {partner.description}
-- Additional Character: {random_character.character_name} - {random_character.description}
+- Mission Giver: {mission_giver.character_name} - {mission_giver_info}
+- Target/Villain: {villain.character_name} - {villain_info}  
+- Partner: {partner.character_name} - {partner_info}
+- Additional Character: {random_character.character_name} - {random_info}
 
 REQUIREMENTS:
 1. Create a mission where {mission_giver.character_name} briefs {player_name} to target {villain.character_name}
 2. {partner.character_name} is assigned as the partner for this mission
-3. Write an opening narrative that establishes the mission scenario
+3. Write an opening narrative that establishes the mission scenario using the character backgrounds
 4. Generate exactly 3 distinct choices, each incorporating one of these characters: {partner.character_name}, {random_character.character_name}, or another creative option
 5. Each choice should represent different risk levels and approaches (cautious, moderate, aggressive)
 6. Make it action-packed espionage with stakes and tension
