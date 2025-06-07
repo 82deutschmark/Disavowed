@@ -25,7 +25,7 @@ class Transaction(db.Model):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class Character(db.Model):
-    __tablename__ = 'character'
+    __tablename__ = 'characters'
     
     id = Column(Integer, primary_key=True)
     image_url = Column(String(500))
