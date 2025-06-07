@@ -240,12 +240,17 @@ def game():
 def make_choice():
     """Process a player's choice"""
     try:
+        logging.info(f"Choice form data received: {dict(request.form)}")
+        
         user_id = session.get('user_id')
         if not user_id:
+            logging.error("No user_id in session")
             return redirect(url_for('start_game'))
         
         choice_id = request.form.get('choice_id')
         custom_choice = request.form.get('custom_choice', '').strip()
+        
+        logging.info(f"Processing choice - ID: {choice_id}, Custom: {custom_choice[:50] if custom_choice else 'None'}")
         
         user_progress = UserProgress.query.filter_by(user_id=user_id).first()
         
