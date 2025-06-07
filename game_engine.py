@@ -102,22 +102,26 @@ class GameEngine:
             
             # Update user progress
             user_progress = UserProgress.query.filter_by(user_id=user_id).first()
-            if user_progress:
-                user_progress.current_node_id = story_node.id
-                user_progress.current_story_id = story.id
+            if not user_progress:
+                user_progress = UserProgress(user_id=user_id)
+                db.session.add(user_progress)
+                db.session.flush()
                 
-                # Update active missions list
-                active_missions = user_progress.active_missions or []
-                active_missions.append(mission.id)
-                user_progress.active_missions = active_missions
-                
-                # Add encountered characters
-                encountered = user_progress.encountered_characters or []
-                new_chars = [mission_giver.id, villain.id, partner.id, random_character.id]
-                for char_id in new_chars:
-                    if char_id not in encountered:
-                        encountered.append(char_id)
-                user_progress.encountered_characters = encountered
+            user_progress.current_node_id = story_node.id
+            user_progress.current_story_id = story.id
+            
+            # Update active missions list
+            active_missions = user_progress.active_missions or []
+            active_missions.append(mission.id)
+            user_progress.active_missions = active_missions
+            
+            # Add encountered characters
+            encountered = user_progress.encountered_characters or []
+            new_chars = [mission_giver.id, villain.id, partner.id, random_character.id]
+            for char_id in new_chars:
+                if char_id not in encountered:
+                    encountered.append(char_id)
+            user_progress.encountered_characters = encountered
             
             db.session.commit()
             return mission
