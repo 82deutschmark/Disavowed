@@ -27,17 +27,16 @@ class GameEngine:
             mission_data = self.openai_integration.generate_mission(mission_giver)
             
             # Create mission record
-            mission = Mission(
-                user_id=user_id,
-                title=mission_data.get('title', 'Classified Operation'),
-                description=mission_data.get('description', 'A dangerous espionage mission'),
-                giver_id=mission_giver.id,
-                objective=mission_data.get('objective', 'Complete the mission objectives'),
-                difficulty=mission_data.get('difficulty', 'medium'),
-                reward_currency='💎',
-                reward_amount=random.randint(2, 5),
-                deadline=mission_data.get('deadline', '48 hours')
-            )
+            mission = Mission()
+            mission.user_id = user_id
+            mission.title = mission_data.get('title', 'Classified Operation')
+            mission.description = mission_data.get('description', 'A dangerous espionage mission')
+            mission.giver_id = mission_giver.id
+            mission.objective = mission_data.get('objective', 'Complete the mission objectives')
+            mission.difficulty = mission_data.get('difficulty', 'medium')
+            mission.reward_currency = '💎'
+            mission.reward_amount = random.randint(2, 5)
+            mission.deadline = mission_data.get('deadline', '48 hours')
             
             db.session.add(mission)
             db.session.commit()
@@ -65,26 +64,24 @@ class GameEngine:
                 return None
             
             # Create initial story generation
-            story = StoryGeneration(
-                primary_conflict=mission.objective,
-                setting="Various espionage locations",
-                narrative_style="Action-packed thriller",
-                mood="Tense and suspenseful",
-                generated_story={"mission_id": mission_id}
-            )
+            story = StoryGeneration()
+            story.primary_conflict = mission.objective
+            story.setting = "Various espionage locations"
+            story.narrative_style = "Action-packed thriller"
+            story.mood = "Tense and suspenseful"
+            story.generated_story = {"mission_id": mission_id}
             db.session.add(story)
             db.session.flush()  # Get the ID
             
             # Generate initial story node
             initial_text = self.openai_integration.generate_story_opening(mission, mission.giver)
             
-            story_node = StoryNode(
-                story_id=story.id,
-                narrative_text=initial_text,
-                character_id=mission.giver_id,
-                is_endpoint=False,
-                branch_metadata={"mission_id": mission_id, "node_type": "opening"}
-            )
+            story_node = StoryNode()
+            story_node.story_id = story.id
+            story_node.narrative_text = initial_text
+            story_node.character_id = mission.giver_id
+            story_node.is_endpoint = False
+            story_node.branch_metadata = {"mission_id": mission_id, "node_type": "opening"}
             db.session.add(story_node)
             db.session.flush()  # Get the ID
             
