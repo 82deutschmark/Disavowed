@@ -1,7 +1,24 @@
 from app import db
+from flask_login import UserMixin
 from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, JSON, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime
+
+class User(UserMixin, db.Model):
+    __tablename__ = 'users'
+    
+    id = Column(Integer, primary_key=True)
+    google_id = Column(String(50), unique=True, nullable=False)
+    email = Column(String(120), unique=True, nullable=False)
+    name = Column(String(100), nullable=False)
+    profile_pic = Column(String(200))
+    diamonds = Column(Integer, default=50)  # All users start with 50 diamonds
+    is_premium = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_login = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationship to user progress
+    progress = relationship("UserProgress", back_populates="authenticated_user", uselist=False)
 
 class Currency(db.Model):
     __tablename__ = 'currency'
@@ -106,14 +123,15 @@ class UserProgress(db.Model):
     __tablename__ = 'user_progress'
     
     id = Column(Integer, primary_key=True)
-    user_id = Column(String(100), nullable=False, unique=True)
+    user_id = Column(String(100), nullable=False, unique=True)  # Keep for guest sessions
+    authenticated_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)  # Link to authenticated users
     current_node_id = Column(Integer, ForeignKey('story_node.id'))
     current_story_id = Column(Integer, ForeignKey('story_generation.id'))
     level = Column(Integer, default=1)
     experience_points = Column(Integer, default=0)
     choice_history = Column(JSON, default=list)
     achievements_earned = Column(JSON, default=list)
-    currency_balances = Column(JSON, default=lambda: {"💎": 5, "💵": 50, "💷": 40, "💶": 45, "💴": 500})
+    currency_balances = Column(JSON, default=lambda: {"💎": 50, "💵": 50, "💷": 40, "💶": 45, "💴": 500})  # Start with 50 diamonds
     encountered_characters = Column(JSON, default=list)
     active_missions = Column(JSON, default=list)
     completed_missions = Column(JSON, default=list)
@@ -126,6 +144,7 @@ class UserProgress(db.Model):
     # Relationships
     current_node = relationship("StoryNode", foreign_keys=[current_node_id])
     current_story = relationship("StoryGeneration", foreign_keys=[current_story_id])
+    authenticated_user = relationship("User", foreign_keys=[authenticated_user_id])
 
 class Mission(db.Model):
     __tablename__ = 'mission'
