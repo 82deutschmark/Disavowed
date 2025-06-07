@@ -27,40 +27,7 @@ class GameInterface {
         }
     }
 
-    validateChoice(event) {
-        const button = event.target;
-        const choiceId = button.closest('[data-choice-id]').dataset.choiceId;
-        
-        // Show loading state
-        button.classList.add('loading');
-        button.disabled = true;
 
-        // Check if user can afford this choice
-        fetch(`/api/currency_check?choice_id=${choiceId}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    if (!data.can_afford) {
-                        event.preventDefault();
-                        this.showCurrencyError(button, 'Insufficient funds for this choice');
-                        return false;
-                    }
-                    this.currencyBalances = data.currency_balances;
-                } else {
-                    event.preventDefault();
-                    this.showError(data.message || 'Unable to validate choice');
-                }
-            })
-            .catch(error => {
-                console.error('Currency check failed:', error);
-                event.preventDefault();
-                this.showError('Network error. Please try again.');
-            })
-            .finally(() => {
-                button.classList.remove('loading');
-                button.disabled = false;
-            });
-    }
 
     validateCustomChoice() {
         const customInput = document.getElementById('customChoice');
@@ -105,18 +72,12 @@ class GameInterface {
             const amount = parseInt(item.textContent.split(' ')[1]);
             this.currencyBalances[currency] = amount;
         });
-
-        // Validate all choices on page load
-        document.querySelectorAll('.choice-option').forEach(choice => {
-            this.validateChoiceAffordability(choice);
-        });
     }
 
     validateChoiceAffordability(choiceElement) {
+        // Simplified - just show cost badges without disabling buttons
         const costBadges = choiceElement.querySelectorAll('.cost-badge:not(.free)');
-        const choiceButton = choiceElement.querySelector('.choice-btn');
-        let canAfford = true;
-
+        
         costBadges.forEach(badge => {
             const text = badge.textContent.trim();
             const parts = text.split(' ');
@@ -126,17 +87,10 @@ class GameInterface {
                 const userAmount = this.currencyBalances[currency] || 0;
                 
                 if (userAmount < amount) {
-                    canAfford = false;
                     badge.classList.add('insufficient-funds');
                 }
             }
         });
-
-        if (!canAfford) {
-            choiceButton.disabled = true;
-            choiceButton.classList.add('insufficient-funds');
-            choiceElement.classList.add('unaffordable');
-        }
     }
 
     initializeCustomChoice() {
