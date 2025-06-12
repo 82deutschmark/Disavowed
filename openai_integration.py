@@ -8,7 +8,10 @@ class OpenAIIntegration:
     
     def __init__(self):
         self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        self.model = "gpt-4.1-nano-2025-04-14"
+        self.model = "gpt-4.1-nano-2025-04-14"  # Current model CHEAP!
+        # self.model = "gpt-4.1-2025-04-14"  # Standard GPT-4 EXPENSIVE!
+        # self.model = "o4-mini-2025-04-16"  # Reasoning version
+        # self.model = "o3-2025-04-16"  # Ultra expensive reasoning version   VERY EXPENSIVE!
     
     def generate_full_mission_story(self, mission_giver, villain, partner, random_character, player_name, player_gender):
         """Generate complete mission with story opening and 3 choices"""
@@ -19,9 +22,7 @@ class OpenAIIntegration:
             # Extract character info properly
             def get_character_info(char):
                 # Use description if available, otherwise note they have an image
-                if char.description:
-                    desc = char.description
-                elif char.image_url:
+                if char.image_url:
                     desc = f"[See character image at {char.image_url}]"
                 else:
                     desc = "Character appearance not described"
@@ -134,7 +135,7 @@ RESPONSE FORMAT (JSON):
             prompt = f"""You are creating a mission briefing for an irreverent espionage CYOA game. 
             The mission giver is: {character_info}
             
-            Generate a mission that fits this character's personality and role. The game has a bold, 
+            Generate a mission that fits this character's devil-may-care personality and role. The game has a bold, 
             risk-taking attitude with high stakes espionage themes.
             
             Respond with JSON in this exact format:
@@ -158,7 +159,7 @@ RESPONSE FORMAT (JSON):
             logging.error(f"Error generating mission: {e}")
             return {
                 "title": "Classified Operation",
-                "description": "A dangerous mission awaits. Your agency needs someone expendable.",
+                "description": "A dangerous mission awaits. Your contact needs someone expendable.",
                 "objective": "Complete the mission objectives without getting killed.",
                 "difficulty": "medium",
                 "deadline": "24 hours"
@@ -167,7 +168,7 @@ RESPONSE FORMAT (JSON):
     def generate_story_opening(self, mission, mission_giver):
         """Generate the opening narrative for a mission"""
         try:
-            character_name = mission_giver.character_name if mission_giver else "Your Handler"
+            character_name = mission_giver.character_name if mission_giver else "ERROR"
             
             prompt = f"""You are writing the opening scene for an irreverent espionage CYOA game.
             
@@ -260,20 +261,20 @@ Available characters to incorporate into choices:
             if character:
                 character_info = f"Current character: {character.character_name}"
             
-            prompt = f"""Continue this espionage story based on the player's choice.
+            prompt = f"""Continue this espionage story based on the player's choice. Use the game state to maintain context.
             
-            Previous narrative: {previous_text}
+            Previous narrative: {previous_text} 
             Player's action: {chosen_action}
             {character_info}
             
-            Write a 2-3 paragraph continuation that:
+            Write a meaningful continuation that:
             1. Shows the immediate consequences of the player's action
-            2. Advances the story with new complications or revelations
-            3. Maintains tension and espionage atmosphere
+            2. Advances the story with new complications or revelations 
+            3. Maintains context with the mission
             4. Sets up the next decision point
             5. Keeps the bold, risk-taking tone
             
-            Around 150-200 words."""
+            Around 1500-2000 words."""
             
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -307,7 +308,7 @@ Available characters to incorporate into choices:
             5. Keeps the bold, irreverent tone
             
             The player paid premium currency for this choice, so make it impactful.
-            Around 150-200 words."""
+            Around 1500-2000 words."""
             
             response = self.client.chat.completions.create(
                 model=self.model,
