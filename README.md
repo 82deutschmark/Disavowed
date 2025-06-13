@@ -37,7 +37,7 @@ A choose-your-own-adventure espionage game with OpenAI-generated storylines and 
 
 ## Game Flow
 
-1. Player starts and receives mission assignment from random character
+1. Player starts and receives mission assignment from character from the database with the role of "mission-giver"
 2. OpenAI generates opening story narrative
 3. Engine creates 3 AI choices (each featuring different random characters) + 1 custom option
 4. Player selections advance story with currency costs
