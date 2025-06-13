@@ -28,6 +28,10 @@ A choose-your-own-adventure espionage game with OpenAI-generated storylines and 
 ## Setup
 
 1. Ensure PostgreSQL database is configured with DATABASE_URL
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 2. Provide OPENAI_API_KEY for story generation
 3. Run with: `gunicorn --bind 0.0.0.0:5000 --reuse-port --reload main:app`
 
