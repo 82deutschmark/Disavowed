@@ -4,6 +4,8 @@ A choose-your-own-adventure espionage game with OpenAI-generated storylines and 
 
 ## Features
 
+- **Key Art Landing Image**: Visually striking hero image added to landing page (static/images/Disavowed.png)
+
 - **4-Tier Choice System**: 3 AI-generated choices with currency costs + 1 custom diamond choice
 - **Character Integration**: Choices incorporate random characters from the database as allies/contacts
 - **Currency System**: Multi-currency economy (diamonds, dollars, pounds, euros, yen)
