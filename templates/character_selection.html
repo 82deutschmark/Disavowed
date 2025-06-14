@@ -1,54 +1,213 @@
 {% extends "base.html" %}
-{% block title %}Character Selection - Disavowed{% endblock %}
+{% block title %}Assemble Your Team - Disavowed{% endblock %}
 {% block content %}
-<div class="container mt-5">
-    <h2>Mission Team Assembly</h2>
-    <form method="POST">
-        <div class="row">
-            <div class="col-md-4">
-                <h4>Mission Giver</h4>
+<div class="container mt-4">
+    <!-- Header Section -->
+    <div class="text-center mb-4">
+        <h1 class="display-4 text-primary mb-2">Assemble Your Team, Agent</h1>
+        <p class="lead text-muted">You are the protagonist. Choose your supporting cast wisely.</p>
+    </div>
+
+    <form method="POST" action="{{ url_for('start_game') }}">
+        <!-- Character Selection Grid -->
+        <div class="row mb-5">
+            <!-- Mission Giver Column -->
+            <div class="col-lg-4 mb-4">
+                <h3 class="text-center mb-3 text-info">
+                    <i class="fas fa-user-tie"></i> Mission Giver
+                </h3>
                 {% for giver in mission_givers %}
-                <div class="card mb-2">
+                <div class="card character-card mb-3 shadow-sm">
                     <div class="card-body">
-                        <input type="radio" name="mission_giver_id" value="{{ giver.id }}" id="giver_{{ giver.id }}" required>
-                        <label for="giver_{{ giver.id }}">
-                            <strong>{{ giver.character_name }}</strong><br>
-                            <small>{{ giver.description[:100] }}...</small>
-                        </label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="mission_giver_id" 
+                                   value="{{ giver.id }}" id="giver_{{ giver.id }}" required>
+                            <label class="form-check-label w-100" for="giver_{{ giver.id }}">
+                                <div class="row align-items-center">
+                                    <div class="col-4">
+                                        <img src="{{ giver.image_url }}" alt="{{ giver.character_name }}" 
+                                             class="img-fluid rounded character-image">
+                                    </div>
+                                    <div class="col-8">
+                                        <h5 class="card-title mb-1">{{ giver.character_name }}</h5>
+                                        <p class="card-text small text-muted">
+                                            {{ giver.description[:80] }}{% if giver.description|length > 80 %}...{% endif %}
+                                        </p>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" 
+                                                data-bs-toggle="collapse" data-bs-target="#giver_bio_{{ giver.id }}">
+                                            Full Bio
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="collapse mt-2" id="giver_bio_{{ giver.id }}">
+                                    <div class="card card-body bg-light">
+                                        <p class="small mb-0">{{ giver.backstory }}</p>
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
                     </div>
                 </div>
                 {% endfor %}
             </div>
-            <div class="col-md-4">
-                <h4>Target/Villain</h4>
+
+            <!-- Target/Villain Column -->
+            <div class="col-lg-4 mb-4">
+                <h3 class="text-center mb-3 text-danger">
+                    <i class="fas fa-user-secret"></i> Target / Villain
+                </h3>
                 {% for villain in villains %}
-                <div class="card mb-2">
+                <div class="card character-card mb-3 shadow-sm">
                     <div class="card-body">
-                        <input type="radio" name="villain_id" value="{{ villain.id }}" id="villain_{{ villain.id }}" required>
-                        <label for="villain_{{ villain.id }}">
-                            <strong>{{ villain.character_name }}</strong><br>
-                            <small>{{ villain.description[:100] }}...</small>
-                        </label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="villain_id" 
+                                   value="{{ villain.id }}" id="villain_{{ villain.id }}" required>
+                            <label class="form-check-label w-100" for="villain_{{ villain.id }}">
+                                <div class="row align-items-center">
+                                    <div class="col-4">
+                                        <img src="{{ villain.image_url }}" alt="{{ villain.character_name }}" 
+                                             class="img-fluid rounded character-image">
+                                    </div>
+                                    <div class="col-8">
+                                        <h5 class="card-title mb-1">{{ villain.character_name }}</h5>
+                                        <p class="card-text small text-muted">
+                                            {{ villain.description[:80] }}{% if villain.description|length > 80 %}...{% endif %}
+                                        </p>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" 
+                                                data-bs-toggle="collapse" data-bs-target="#villain_bio_{{ villain.id }}">
+                                            Full Bio
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="collapse mt-2" id="villain_bio_{{ villain.id }}">
+                                    <div class="card card-body bg-light">
+                                        <p class="small mb-0">{{ villain.backstory }}</p>
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
                     </div>
                 </div>
                 {% endfor %}
             </div>
-            <div class="col-md-4">
-                <h4>Partner</h4>
+
+            <!-- Partner Column -->
+            <div class="col-lg-4 mb-4">
+                <h3 class="text-center mb-3 text-success">
+                    <i class="fas fa-users"></i> Partner
+                </h3>
                 {% for partner in partners %}
-                <div class="card mb-2">
+                <div class="card character-card mb-3 shadow-sm">
                     <div class="card-body">
-                        <input type="radio" name="partner_id" value="{{ partner.id }}" id="partner_{{ partner.id }}" required>
-                        <label for="partner_{{ partner.id }}">
-                            <strong>{{ partner.character_name }}</strong><br>
-                            <small>{{ partner.description[:100] }}...</small>
-                        </label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="partner_id" 
+                                   value="{{ partner.id }}" id="partner_{{ partner.id }}" required>
+                            <label class="form-check-label w-100" for="partner_{{ partner.id }}">
+                                <div class="row align-items-center">
+                                    <div class="col-4">
+                                        <img src="{{ partner.image_url }}" alt="{{ partner.character_name }}" 
+                                             class="img-fluid rounded character-image">
+                                    </div>
+                                    <div class="col-8">
+                                        <h5 class="card-title mb-1">{{ partner.character_name }}</h5>
+                                        <p class="card-text small text-muted">
+                                            {{ partner.description[:80] }}{% if partner.description|length > 80 %}...{% endif %}
+                                        </p>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" 
+                                                data-bs-toggle="collapse" data-bs-target="#partner_bio_{{ partner.id }}">
+                                            Full Bio
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="collapse mt-2" id="partner_bio_{{ partner.id }}">
+                                    <div class="card card-body bg-light">
+                                        <p class="small mb-0">{{ partner.backstory }}</p>
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
                     </div>
                 </div>
                 {% endfor %}
             </div>
         </div>
-        <button type="submit" class="btn btn-primary mt-3">Generate Mission</button>
+
+        <!-- Story Preferences Section -->
+        <div class="row mb-4">
+            <div class="col-md-8 offset-md-2">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0"><i class="fas fa-cogs"></i> Story Preferences</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="narrative_style" class="form-label">
+                                    <strong>Narrative Style</strong>
+                                </label>
+                                <input type="text" class="form-control" id="narrative_style" 
+                                       name="narrative_style" placeholder="Modern Espionage Thriller"
+                                       value="Modern Espionage Thriller">
+                                <div class="form-text">Describe the tone and style of your story.</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="mood" class="form-label">
+                                    <strong>Mood</strong>
+                                </label>
+                                <input type="text" class="form-control" id="mood" 
+                                       name="mood" placeholder="Action-packed and Suspenseful"
+                                       value="Action-packed and Suspenseful">
+                                <div class="form-text">Set the emotional atmosphere of your mission.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Start Mission Button -->
+        <div class="text-center mb-5">
+            <button type="submit" class="btn btn-success btn-lg px-5 py-3 shadow-lg">
+                <i class="fas fa-rocket me-2"></i>
+                <strong>START MISSION</strong>
+            </button>
+            <p class="text-muted mt-2">Your adventure begins now, Agent.</p>
+        </div>
     </form>
 </div>
+
+<style>
+    .character-card {
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        cursor: pointer;
+    }
+    
+    .character-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important;
+    }
+    
+    .character-image {
+        width: 80px;
+        height: 80px;
+        object-fit: cover;
+        border: 2px solid #dee2e6;
+    }
+    
+    .form-check-input:checked ~ .form-check-label .character-card {
+        border: 2px solid #007bff;
+        background-color: #f8f9fa;
+    }
+    
+    .btn-success {
+        background: linear-gradient(45deg, #28a745, #20c997);
+        border: none;
+        letter-spacing: 1px;
+    }
+    
+    .btn-success:hover {
+        background: linear-gradient(45deg, #218838, #1aa179);
+        transform: translateY(-1px);
+    }
+</style>
 {% endblock %}

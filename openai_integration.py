@@ -13,11 +13,17 @@ class OpenAIIntegration:
         # self.model = "o4-mini-2025-04-16"  # Reasoning version
         # self.model = "o3-2025-04-16"  # Ultra expensive reasoning version   VERY EXPENSIVE!
     
-    def generate_full_mission_story(self, mission_giver, villain, partner, random_character, player_name, player_gender):
+    def generate_full_mission_story(self, mission_giver, villain, partner, random_character, player_name, player_gender, narrative_style=None, mood=None):
         """Generate complete mission with story opening and 3 choices"""
         try:
             import json as json_lib
             pronouns = {'he/him': 'he', 'she/her': 'she', 'they/them': 'they'}.get(player_gender, 'they')
+            
+            # Set defaults if not provided
+            if not narrative_style:
+                narrative_style = 'Modern Espionage Thriller'
+            if not mood:
+                mood = 'Action-packed and Suspenseful'
             
             # Extract character info properly
             def get_character_info(char):
@@ -67,6 +73,11 @@ class OpenAIIntegration:
             
             prompt = f"""You are creating an espionage CYOA game scenario. Generate a complete mission briefing and opening story segment with exactly 3 choices.
 
+STORY STYLE REQUIREMENTS:
+- Narrative Style: {narrative_style}
+- Mood: {mood}
+- Write in the specified narrative style and maintain the requested mood throughout
+
 CHARACTERS:
 - Player: {player_name} (pronouns: {pronouns})
 - Mission Giver: {mission_giver.character_name} - {mission_giver_info}
@@ -77,10 +88,10 @@ CHARACTERS:
 REQUIREMENTS:
 1. Create a mission where {mission_giver.character_name} briefs {player_name} to target {villain.character_name}
 2. {partner.character_name} is assigned as the partner for this mission
-3. Write an opening narrative that establishes the mission scenario using the character backgrounds
+3. Write an opening narrative in {narrative_style} style with {mood} mood that establishes the mission scenario using the character backgrounds
 4. Generate exactly 3 distinct choices, each incorporating one of these characters: {partner.character_name}, {random_character.character_name}, or another creative option
 5. Each choice should represent different risk levels and approaches (cautious, moderate, aggressive)
-6. Make it action-packed espionage with stakes and tension
+6. Make it action-packed espionage with stakes and tension, maintaining the {mood} mood
 
 RESPONSE FORMAT (JSON):
 {{
@@ -90,6 +101,8 @@ RESPONSE FORMAT (JSON):
     "difficulty": "medium",
     "deadline": "48 hours",
     "setting": "Location/environment description",
+    "narrative_style": "{narrative_style}",
+    "mood": "{mood}",
     "opening_narrative": "2-3 paragraph story opening that introduces the mission briefing and sets up the choices",
     "choices": [
         {{

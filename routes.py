@@ -110,19 +110,29 @@ def character_selection():
                                  villains=villains,
                                  partners=partners)
         
-        # Process character selections
+        # Process character selections and story preferences
         mission_giver_id = request.form.get('mission_giver_id')
         villain_id = request.form.get('villain_id')
         partner_id = request.form.get('partner_id')
+        narrative_style = request.form.get('narrative_style', 'Modern Espionage Thriller').strip()
+        mood = request.form.get('mood', 'Action-packed and Suspenseful').strip()
         
         if not all([mission_giver_id, villain_id, partner_id]):
             flash("Please select all required characters.", "error")
             return redirect(url_for('character_selection'))
         
+        # Validate and set defaults for story preferences if empty
+        if not narrative_style:
+            narrative_style = 'Modern Espionage Thriller'
+        if not mood:
+            mood = 'Action-packed and Suspenseful'
+        
         # Store selections in session
         session['mission_giver_id'] = mission_giver_id
         session['villain_id'] = villain_id
         session['partner_id'] = partner_id
+        session['narrative_style'] = narrative_style
+        session['mood'] = mood
         
         return redirect(url_for('generate_mission'))
                              
@@ -141,6 +151,8 @@ def generate_mission():
         partner_id = session.get('partner_id')
         player_name = session.get('player_name')
         player_gender = session.get('player_gender')
+        narrative_style = session.get('narrative_style')
+        mood = session.get('mood')
         
         if not all([user_id, mission_giver_id, villain_id, partner_id]):
             return redirect(url_for('character_selection'))
@@ -156,7 +168,7 @@ def generate_mission():
         # Generate mission and first story segment with choices
         mission_data = game_engine.create_full_mission(
             user_id, mission_giver, villain, partner, random_character,
-            player_name, player_gender
+            player_name, player_gender, narrative_style, mood
         )
         
         if mission_data:

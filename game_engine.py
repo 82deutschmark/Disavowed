@@ -20,12 +20,18 @@ class GameEngine:
             'diamond': {'💎': 1}  # Premium choice
         }
     
-    def create_full_mission(self, user_id, mission_giver, villain, partner, random_character, player_name, player_gender):
+    def create_full_mission(self, user_id, mission_giver, villain, partner, random_character, player_name, player_gender, narrative_style=None, mood=None):
         """Create complete mission with story opening and choices"""
         try:
+            # Set defaults if not provided
+            if not narrative_style:
+                narrative_style = 'Modern Espionage Thriller'
+            if not mood:
+                mood = 'Action-packed and Suspenseful'
+            
             # Generate mission and story using OpenAI with all character context
             mission_story_data = self.openai_integration.generate_full_mission_story(
-                mission_giver, villain, partner, random_character, player_name, player_gender
+                mission_giver, villain, partner, random_character, player_name, player_gender, narrative_style, mood
             )
             
             if not mission_story_data:
@@ -35,8 +41,8 @@ class GameEngine:
             story = StoryGeneration()
             story.primary_conflict = mission_story_data.get('objective', 'Complete mission objectives')
             story.setting = mission_story_data.get('setting', 'Various espionage locations')
-            story.narrative_style = 'Action-packed espionage thriller'
-            story.mood = 'Tense and suspenseful'
+            story.narrative_style = narrative_style  # Use user-provided value
+            story.mood = mood  # Use user-provided value
             story.generated_story = {
                 'characters': {
                     'mission_giver': mission_giver.id,
