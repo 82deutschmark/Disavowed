@@ -1,3 +1,4 @@
+<!-- Updated by o3-high reasoning on 2025-06-14 -->
 # Disavowed Changelog
 
 _All notable changes to the project will be documented in this file._
@@ -20,3 +21,12 @@ _All notable changes to the project will be documented in this file._
 * Added `python-dotenv` to `requirements.txt` so environment variables load automatically when running locally.
 * Updated documentation regarding Google OAuth redirect URI instructions.
 * This entry authored automatically by **Cascade**.
+
+---
+
+## [2025-06-14] - README Alignment with Game Concept & Schema
+
+* Expanded `README.md` with detailed game concept, mission structure, core mechanics, and full database overview.
+* Added author attribution comment at the top of `README.md` with timestamp.
+* Documentation now accurately reflects information from Game Concept Overview and Database Schema Documentation.
+* This entry authored automatically by **o3-high reasoning**.

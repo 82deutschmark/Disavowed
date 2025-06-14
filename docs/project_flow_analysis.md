@@ -225,3 +225,25 @@ story.generated_story = {
 The project has a solid architectural foundation but requires immediate attention to unnecessary data storage and OpenAI response format control. The intended flow from POST → OpenAI → mission_assignment.html → game.html is clear, but needs better user feedback and error recovery mechanisms.
 
 The database constraint issue is preventing story generation from completing successfully, which blocks the entire user experience. Addressing the unnecessary data storage should be the immediate priority.
+
+---
+
+### 2025-06-14 Update Summary (16:46)
+
+Since the original analysis, several key changes have been made and documented:
+
+1. **Routing Fixes**  
+   * Added the missing `/mission_assignment` route in `routes.py`; `mission_assignment.html` is now properly rendered after mission generation.
+2. **Enhanced Story Preferences**  
+   * The `/character_selection` flow now collects **`narrative_style`** and **`mood`** from the player and stores them in session variables.  
+   * These values are passed through `generate_mission → GameEngine.create_full_mission → OpenAIIntegration.generate_full_mission_story`, replacing previously hard-coded defaults.
+3. **Prompt & Schema Alignment Initiative**  
+   * Created **`docs/dynamic_prompt_db_alignment_plan.md`** outlining a schema-aware prompt redesign, safe JSON parsing, and strict length enforcement before DB writes.  
+   * This supersedes the earlier “don’t store unnecessary data” quick-fix approach and provides a scalable solution.
+4. **Documentation Sync**  
+   * `actual_vs_intended_flow_analysis.md` now details the dual-template issue and recommended consolidation paths.  
+   * This file (project_flow_analysis.md) has been updated to reference the new routing, preference handling, and dynamic prompt alignment plan.
+
+**Next Steps**  
+Refer to the checklist in `dynamic_prompt_db_alignment_plan.md` for implementation tasks. Executing that plan will resolve the outstanding database constraint errors and streamline future development.
+
