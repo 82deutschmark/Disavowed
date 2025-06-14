@@ -7,7 +7,21 @@ from models import (UserProgress, Mission, Character, StoryNode, StoryChoice,
 from openai_integration import OpenAIIntegration
 
 class GameEngine:
-    """Core game logic engine for the espionage CYOA game"""
+    """
+    Core game logic engine for the espionage CYOA game
+    Author: Cascade
+    
+    This engine orchestrates the game flow between the database, AI generation,
+    and user interactions. It ensures data integrity and provides a seamless
+    narrative experience by coordinating between story generation, mission
+    management, and user progress tracking.
+    
+    Key features:
+    - Schema-aware mission and story creation
+    - Safe handling of AI-generated content with validation
+    - Currency and progression management
+    - Error handling and fallback mechanisms
+    """
     
     def __init__(self):
         self.openai_integration = OpenAIIntegration()
@@ -21,7 +35,10 @@ class GameEngine:
         }
     
     def create_full_mission(self, user_id, mission_giver, villain, partner, random_character, player_name, player_gender, narrative_style=None, mood=None):
-        """Create complete mission with story opening and choices"""
+        """
+        Create complete mission with story opening and choices using schema-aware AI generation.
+        Returns the created mission and initial story node, or None if creation fails.
+        """
         try:
             # Set defaults if not provided
             if not narrative_style:
@@ -35,7 +52,15 @@ class GameEngine:
             )
             
             if not mission_story_data:
+                logging.error("Failed to generate mission story data from OpenAI")
                 return None
+            
+            # Validate required fields are present
+            required_fields = ['mission_title', 'mission_description', 'objective', 'opening_narrative', 'choices']
+            for field in required_fields:
+                if field not in mission_story_data:
+                    logging.error(f"Missing required field '{field}' in OpenAI response")
+                    return None
             
             # Create story generation record first
             story = StoryGeneration()
@@ -50,7 +75,8 @@ class GameEngine:
                     'partner': partner.id,
                     'random': random_character.id
                 },
-                'player': {'name': player_name, 'gender': player_gender}
+                'player': {'name': player_name, 'gender': player_gender},
+                'ai_response': mission_story_data  # Store original AI response for debugging
             }
             db.session.add(story)
             db.session.flush()
@@ -81,17 +107,36 @@ class GameEngine:
             story_node.branch_metadata = {
                 'mission_id': mission.id,
                 'node_type': 'opening',
-                'characters_present': [mission_giver.id, partner.id]
+                'characters_present': [mission_giver.id, partner.id],
+                'ai_generation_meta': {
+                    'narrative_style': narrative_style,
+                    'mood': mood,
+                    'generated_at': datetime.utcnow().isoformat()
+                }
             }
             db.session.add(story_node)
             db.session.flush()
             
-            # Create the 3 choices with currency costs
+            # Create the 3 choices with currency costs and risk levels
             choices_data = mission_story_data.get('choices', [])
+            if not choices_data:
+                logging.error("No choices data provided in OpenAI response")
+                return None
+                
             cost_tiers = ['low', 'medium', 'high']
             
             for i, choice_data in enumerate(choices_data[:3]):
-                tier = cost_tiers[i] if i < len(cost_tiers) else 'medium'
+                if not isinstance(choice_data, dict):
+                    logging.warning(f"Invalid choice data format at index {i}, skipping")
+                    continue
+                    
+                # Map AI risk level to currency tier
+                ai_risk_level = choice_data.get('risk_level', 'medium')
+                if ai_risk_level in cost_tiers:
+                    tier = ai_risk_level
+                else:
+                    tier = cost_tiers[i] if i < len(cost_tiers) else 'medium'
+                
                 currency_symbol = random.choice(list(self.currency_tiers[tier].keys()))
                 currency_cost = self.currency_tiers[tier][currency_symbol]
                 
@@ -100,37 +145,20 @@ class GameEngine:
                 choice.choice_text = choice_data.get('text', 'Take action')
                 choice.currency_requirements = {currency_symbol: currency_cost}
                 choice.choice_metadata = {
+                    'character_used': choice_data.get('character_used', 'Unknown'),
+                    'risk_level': choice_data.get('risk_level', 'medium'),
+                    'next_node_summary': choice_data.get('next_node_summary', ''),
                     'tier': tier,
-                    'ai_generated': True,
-                    'character_mentioned': choice_data.get('character_used', '')
+                    'ai_generated': True
                 }
+                
                 db.session.add(choice)
             
-            # Update user progress
-            user_progress = UserProgress.query.filter_by(user_id=user_id).first()
-            if not user_progress:
-                user_progress = UserProgress(user_id=user_id)
-                db.session.add(user_progress)
-                db.session.flush()
-                
-            user_progress.current_node_id = story_node.id
-            user_progress.current_story_id = story.id
-            
-            # Update active missions list
-            active_missions = user_progress.active_missions or []
-            active_missions.append(mission.id)
-            user_progress.active_missions = active_missions
-            
-            # Add encountered characters
-            encountered = user_progress.encountered_characters or []
-            new_chars = [mission_giver.id, villain.id, partner.id, random_character.id]
-            for char_id in new_chars:
-                if char_id not in encountered:
-                    encountered.append(char_id)
-            user_progress.encountered_characters = encountered
-            
+            # Commit all changes
             db.session.commit()
-            return mission
+            
+            logging.info(f"Successfully created mission '{mission.title}' for user {user_id}")
+            return mission, story_node
             
         except Exception as e:
             logging.error(f"Error creating full mission: {e}")
@@ -138,7 +166,9 @@ class GameEngine:
             return None
     
     def start_mission_story(self, user_id, mission_id):
-        """Start the story for a mission"""
+        """
+        Start the story for a mission
+        """
         try:
             mission = Mission.query.get(mission_id)
             if not mission or mission.user_id != user_id:
@@ -155,7 +185,14 @@ class GameEngine:
             db.session.flush()  # Get the ID
             
             # Generate initial story node
-            initial_text = self.openai_integration.generate_story_opening(mission, mission.giver)
+            opening_data = self.openai_integration.generate_story_opening(mission, mission.giver)
+            
+            if not opening_data:
+                logging.error("Failed to generate story opening from OpenAI")
+                return None
+            
+            # Extract opening narrative from structured JSON response
+            initial_text = opening_data.get('opening_narrative', 'The mission begins with high stakes and danger lurking around every corner...')
             
             story_node = StoryNode()
             story_node.story_id = story.id
@@ -180,37 +217,57 @@ class GameEngine:
             return None
     
     def generate_choices_for_node(self, node, user_progress):
-        """Generate 4 choices for a story node (3 AI + 1 custom)"""
+        """
+        Generate 4 choices for a story node (3 AI + 1 custom)
+        """
         try:
             # Get random characters from database for choices
             from models import Character
             available_characters = Character.query.order_by(db.func.random()).limit(6).all()
             
             # Generate 3 AI choices with different cost tiers
-            ai_choices_data = self.openai_integration.generate_choices(
+            choices_response = self.openai_integration.generate_choices(
                 node.narrative_text, 
                 node.character, 
                 user_progress.game_state,
                 available_characters
             )
             
+            if not choices_response:
+                logging.error("Failed to generate choices from OpenAI")
+                return []
+            
+            # Extract choices array from structured JSON response
+            ai_choices_data = choices_response.get('choices', [])
+            
             choices = []
             cost_tiers = ['low', 'medium', 'high']
             
             for i, choice_data in enumerate(ai_choices_data[:3]):
-                # Assign currency cost based on tier
-                tier = cost_tiers[i] if i < len(cost_tiers) else 'medium'
+                if not isinstance(choice_data, dict):
+                    logging.warning(f"Invalid choice data format at index {i}, skipping")
+                    continue
+                    
+                # Assign currency cost based on tier or risk level
+                ai_risk_level = choice_data.get('risk_level', 'medium')
+                if ai_risk_level in cost_tiers:
+                    tier = ai_risk_level
+                else:
+                    tier = cost_tiers[i] if i < len(cost_tiers) else 'medium'
+                    
                 currency_symbol = random.choice(list(self.currency_tiers[tier].keys()))
                 currency_cost = self.currency_tiers[tier][currency_symbol]
                 
                 choice = StoryChoice()
                 choice.node_id = node.id
-                choice.choice_text = choice_data['text']
+                choice.choice_text = choice_data.get('text', 'Take action')
                 choice.currency_requirements = {currency_symbol: currency_cost}
                 choice.choice_metadata = {
                     'tier': tier,
                     'ai_generated': True,
-                    'consequence': choice_data.get('consequence', '')
+                    'consequence': choice_data.get('consequence', ''),
+                    'character_used': choice_data.get('character_used', 'Unknown'),
+                    'risk_level': choice_data.get('risk_level', 'medium')
                 }
                 db.session.add(choice)
                 choices.append(choice)
@@ -224,7 +281,9 @@ class GameEngine:
             return []
     
     def can_afford_choice(self, user_progress, choice):
-        """Check if user can afford a choice"""
+        """
+        Check if user can afford a choice
+        """
         if not choice.currency_requirements:
             return True
         
@@ -238,7 +297,9 @@ class GameEngine:
         return True
     
     def process_choice(self, user_progress, choice):
-        """Process a user's choice selection"""
+        """
+        Process a user's choice selection
+        """
         try:
             # Check if user can afford the choice
             if not self.can_afford_choice(user_progress, choice):
@@ -295,7 +356,9 @@ class GameEngine:
             }
     
     def process_custom_choice(self, user_progress, custom_text):
-        """Process a custom user-input choice (costs diamonds)"""
+        """
+        Process a custom user-input choice (costs diamonds)
+        """
         try:
             # Check diamond balance
             diamond_cost = self.currency_tiers['diamond']['💎']
@@ -355,7 +418,9 @@ class GameEngine:
             }
     
     def _deduct_currency(self, user_progress, currency_requirements):
-        """Deduct currency from user balance"""
+        """
+        Deduct currency from user balance
+        """
         balances = user_progress.currency_balances or {}
         
         for currency, amount in currency_requirements.items():
@@ -365,7 +430,9 @@ class GameEngine:
         user_progress.currency_balances = balances
     
     def _generate_next_node(self, choice, user_progress):
-        """Generate the next story node based on choice"""
+        """
+        Generate the next story node based on choice
+        """
         try:
             # If choice already has a next_node_id, use it
             if choice.next_node_id:
@@ -373,12 +440,19 @@ class GameEngine:
             
             # Generate new node using AI
             current_node = StoryNode.query.get(choice.node_id)
-            narrative_text = self.openai_integration.generate_story_continuation(
+            response_data = self.openai_integration.generate_story_continuation(
                 current_node.narrative_text,
                 choice.choice_text,
                 current_node.character,
                 user_progress.game_state
             )
+            
+            if not response_data:
+                logging.error("Failed to generate story continuation from OpenAI")
+                return None
+            
+            # Extract narrative text from structured JSON response
+            narrative_text = response_data.get('narrative_text', 'Your bold action creates unexpected consequences...')
             
             next_node = StoryNode(
                 story_id=current_node.story_id,
@@ -401,14 +475,23 @@ class GameEngine:
             return None
     
     def _generate_custom_response_node(self, current_node, custom_choice, user_progress):
-        """Generate response to custom user choice"""
+        """
+        Generate response to custom user choice
+        """
         try:
-            narrative_text = self.openai_integration.generate_custom_choice_response(
+            response_data = self.openai_integration.generate_custom_choice_response(
                 current_node.narrative_text,
                 custom_choice,
                 current_node.character,
                 user_progress.game_state
             )
+            
+            if not response_data:
+                logging.error("Failed to generate custom choice response from OpenAI")
+                return None
+            
+            # Extract narrative text from structured JSON response
+            narrative_text = response_data.get('narrative_text', 'Your bold action creates unexpected consequences...')
             
             next_node = StoryNode(
                 story_id=current_node.story_id,

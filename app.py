@@ -57,5 +57,9 @@ with app.app_context():
     from stripe_payments import payments
     app.register_blueprint(payments)
     
+    # Register migration routes for database schema fixes
+    from migration_routes import migration_bp
+    app.register_blueprint(migration_bp)
+    
     # Create tables if they don't exist
     db.create_all()

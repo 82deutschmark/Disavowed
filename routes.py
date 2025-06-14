@@ -80,8 +80,42 @@ def start_game():
         )
         
         if mission_data:
+            # Unpack the returned mission and story_node
+            mission, story_node = mission_data
+            
+            # Update user progress to point to the new story node
+            user_progress = UserProgress.query.filter_by(user_id=user_id).first()
+            if not user_progress:
+                user_progress = UserProgress(user_id=user_id)
+                db.session.add(user_progress)
+                db.session.flush()
+            
+            user_progress.current_node_id = story_node.id
+            user_progress.current_story_id = story_node.story_id
+            
+            # Update active missions list
+            active_missions = user_progress.active_missions or []
+            if mission.id not in active_missions:
+                active_missions.append(mission.id)
+            user_progress.active_missions = active_missions
+            
+            # Add encountered characters
+            encountered = user_progress.encountered_characters or []
+            new_chars = [mission_giver.id, villain.id, partner.id, random_character.id]
+            for char_id in new_chars:
+                if char_id not in encountered:
+                    encountered.append(char_id)
+            user_progress.encountered_characters = encountered
+            
+            db.session.commit()
+            
+            logging.info(f"Successfully set up user progress for mission '{mission.title}'")
             return redirect(url_for('game'))
         else:
+            # Log more detailed error information
+            logging.error("create_full_mission returned None - mission creation failed")
+            logging.error(f"Player: {player_name}, Giver: {mission_giver.character_name if mission_giver else 'None'}")
+            logging.error(f"Villain: {villain.character_name if villain else 'None'}, Partner: {partner.character_name if partner else 'None'}")
             flash("Failed to generate mission. Please try again.", "error")
             return redirect(url_for('start_game'))
             
