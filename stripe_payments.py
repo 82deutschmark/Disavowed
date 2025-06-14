@@ -1,17 +1,27 @@
 # Stripe payment integration for the espionage game
+# This module handles Stripe payment processing for diamond purchases
+# Updated by Cascade to support both local development and Replit deployment
+# Uses LOCAL_DOMAIN environment variable for local development fallback
 
 import os
 import stripe
 from flask import Blueprint, request, redirect, url_for, flash, render_template
 from flask_login import login_required, current_user
+from models import User, UserProgress
 from app import db
-from models import User
 
 # Initialize Stripe
 stripe.api_key = os.environ.get('STRIPE_SECRET_KEY')
 
 # Get domain for success/cancel URLs
-YOUR_DOMAIN = os.environ.get('REPLIT_DEV_DOMAIN') if os.environ.get('REPLIT_DEPLOYMENT') != '1' else os.environ.get('REPLIT_DOMAINS').split(',')[0]
+# Support both Replit and local development environments
+if os.environ.get('REPLIT_DEV_DOMAIN'):
+    # Running on Replit
+    YOUR_DOMAIN = os.environ.get('REPLIT_DEV_DOMAIN') if os.environ.get('REPLIT_DEPLOYMENT') != '1' else os.environ.get('REPLIT_DOMAINS').split(',')[0]
+else:
+    # Running locally - use LOCAL_DOMAIN from .env
+    local_domain = os.environ.get("LOCAL_DOMAIN", "localhost:5000")
+    YOUR_DOMAIN = f"http://{local_domain}"
 
 payments = Blueprint("payments", __name__)
 

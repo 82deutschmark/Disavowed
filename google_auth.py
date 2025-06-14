@@ -1,4 +1,7 @@
 # Google OAuth authentication blueprint for the espionage game
+# This module handles Google OAuth authentication for user login/logout
+# Updated by Cascade to support both local development and Replit deployment
+# Uses LOCAL_DOMAIN environment variable for local development fallback
 
 import json
 import os
@@ -14,7 +17,14 @@ GOOGLE_CLIENT_SECRET = os.environ["GOOGLE_OAUTH_CLIENT_SECRET"]
 GOOGLE_DISCOVERY_URL = "https://accounts.google.com/.well-known/openid-configuration"
 
 # Make sure to use this redirect URL. It has to match the one in the whitelist
-DEV_REDIRECT_URL = f'https://{os.environ["REPLIT_DEV_DOMAIN"]}/google_login/callback'
+# Support both Replit and local development environments
+if os.environ.get("REPLIT_DEV_DOMAIN"):
+    # Running on Replit
+    DEV_REDIRECT_URL = f'https://{os.environ["REPLIT_DEV_DOMAIN"]}/google_login/callback'
+else:
+    # Running locally - use LOCAL_DOMAIN from .env
+    local_domain = os.environ.get("LOCAL_DOMAIN", "localhost:5000")
+    DEV_REDIRECT_URL = f'http://{local_domain}/google_login/callback'
 
 # Display setup instructions to the user:
 print(f"""To make Google authentication work:
@@ -22,8 +32,8 @@ print(f"""To make Google authentication work:
 2. Create a new OAuth 2.0 Client ID
 3. Add {DEV_REDIRECT_URL} to Authorized redirect URIs
 
-For detailed instructions, see:
-https://docs.replit.com/additional-resources/google-auth-in-flask#set-up-your-oauth-app--client
+For local development, make sure LOCAL_DOMAIN is set in your .env file.
+For Replit deployment, see: https://docs.replit.com/additional-resources/google-auth-in-flask#set-up-your-oauth-app--client
 """)
 
 client = WebApplicationClient(GOOGLE_CLIENT_ID)
@@ -101,7 +111,7 @@ def callback():
         user_progress = UserProgress(
             user_id=f"user_{user.id}",
             authenticated_user_id=user.id,
-            currency_balances={"💎": 50, "💵": 50, "💷": 40, "💶": 45, "💴": 500}
+            currency_balances={"": 50, "": 50, "": 40, "": 45, "": 500}
         )
         db.session.add(user_progress)
         db.session.commit()
