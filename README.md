@@ -61,6 +61,7 @@ A choose-your-own-adventure espionage game with OpenAI-generated storylines and 
 
 ### Theme & Player Role
 * Irreverent espionage with bold, risk-taking attitude.
+* Think "Rick Sanchez" from *Rick and Morty* meets Sterling Archer from *Archer*.
 * Navigate chaotic missions rife with unpredictable twists.
 
 ### Mission Structure
