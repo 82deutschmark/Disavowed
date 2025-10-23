@@ -1,5 +1,5 @@
 <!-- Updated by o3-high reasoning on 2025-06-14 -->
-# Espionage CYOA Game
+# Espionage CYOA Game `Disavowed`
 
 A choose-your-own-adventure espionage game with OpenAI-generated storylines and a 4-tier choice system.
 
