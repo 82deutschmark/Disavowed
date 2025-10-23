@@ -5,6 +5,14 @@ _All notable changes to the project will be documented in this file._
 
 ---
 
+## [2025-06-14] - Responses API Documentation Refresh
+
+* Documented the new Responses API helper, streaming capabilities, and JSON enforcement strategy in `README.md` and `docs/game_flow_and_prompt_design.md`.
+* Clarified the default text model (`gpt-5-nano`) and how future endpoints can opt into streaming while preserving schema validation.
+* This entry authored automatically by **o3-high reasoning**.
+
+---
+
 ## [2025-06-14] - Dynamic Prompt Database Alignment Implementation
 
 * **Major System Enhancement**: Implemented schema-aware prompt templates and safe JSON parsing throughout OpenAI integration.

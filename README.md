@@ -10,7 +10,8 @@ A choose-your-own-adventure espionage game with OpenAI-generated storylines and 
 - **4-Tier Choice System**: 3 AI-generated choices with currency costs + 1 custom diamond choice
 - **Character Integration**: Choices incorporate random characters from the database as allies/contacts
 - **Currency System**: Multi-currency economy (diamonds, dollars, pounds, euros, yen)
-- **Dynamic Story Generation**: OpenAI gpt-4.1-nano-2025-04-14 creates mission briefings and story continuations
+- **Dynamic Story Generation**: OpenAI's Responses API (default `gpt-5-nano` model) powers mission briefings and story continuations with structured JSON guarantees
+- **Progressive Streaming**: Long-form mission intros and narrative beats can stream token-by-token to the UI for faster feedback
 
 ## Architecture
 
@@ -35,7 +36,7 @@ A choose-your-own-adventure espionage game with OpenAI-generated storylines and 
    ```bash
    pip install -r requirements.txt
    ```
-2. Provide OPENAI_API_KEY for story generation
+2. Provide OPENAI_API_KEY for story generation (optional `OPENAI_TEXT_MODEL` overrides the default `gpt-5-nano`)
 3. Run with: `gunicorn --bind 0.0.0.0:5000 --reuse-port --reload main:app`
 
 ## Game Flow
@@ -73,7 +74,7 @@ A choose-your-own-adventure espionage game with OpenAI-generated storylines and 
 ### Core Mechanics
 * **Dual-Tier Decision System:** Low-cost vs premium diamond choices with differing narrative impact.
 * **Currency Management:** Diamonds are scarce and gate critical outcomes; other currencies enhance narrative depth.
-* **Dynamic Storytelling:** OpenAI (GPT-4) generates fresh narrative content for each choice, bounded by DB field limits.
+* **Dynamic Storytelling:** OpenAI (Responses API) generates fresh narrative content for each choice, bounded by DB field limits and validated automatically. Streaming helpers are available for any future endpoints that need progressive updates.
 * **State Machine:** A simplified FSM tracks current `StoryNode`, currency balances, and mission progress.
 
 ## Database Overview

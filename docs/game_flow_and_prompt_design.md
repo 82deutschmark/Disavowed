@@ -5,7 +5,17 @@
 
 ## 1. Overview
 
-This document outlines the core data and logic flow for the Disavowed game engine, from initial mission creation to the turn-by-turn gameplay loop. It details how the application interacts with the database and the OpenAI API to create a dynamic, coherent narrative experience. This blueprint will guide the necessary code changes to fix the current database errors and streamline the story generation process.
+This document outlines the core data and logic flow for the Disavowed game engine, from initial mission creation to the turn-by-turn gameplay loop. It details how the application interacts with the database and the OpenAI Responses API to create a dynamic, coherent narrative experience. This blueprint will guide the necessary code changes to fix the current database errors and streamline the story generation process.
+
+### 1.1 Responses API Modernization
+
+The codebase now routes all narrative generation through a single `OpenAIIntegration` helper that calls `client.responses.create(...)` (or the streaming variant) with split **instructions** and **input** payloads. The helper exposes:
+
+* Shared defaults for the text model (`gpt-5-nano` by default) and temperature/max token budgets.
+* `response_format={"type": "json_object"}` enforcement so we receive schema-compliant JSON without manual role parsing.
+* Optional streaming generators that yield `delta` chunks while keeping a final validated JSON payload for downstream consumers.
+
+Any future feature work should reuse these helpers instead of crafting raw prompts.
 
 ## 2. The "Jet Engine" Analogy: Two-Phase Generation
 
@@ -26,7 +36,7 @@ This phase creates the `StoryGeneration` record and the very first `StoryNode`.
 
 1.  **Route (`/start_game`)**: The Flask route receives the selected character IDs.
 2.  **Game Engine (`create_full_mission`)**: This function is called with the character information.
-3.  **OpenAI Integration (`generate_full_mission_story`)**: This function constructs and sends the **Initial Prompt** to the OpenAI API.
+3.  **OpenAI Integration (`generate_full_mission_story`)**: This function constructs and sends the **Initial Prompt** to the OpenAI Responses API via the shared helper (instructions text + input payload).
 
 **The Initial Prompt ("Rich Fuel Mix")**
 
@@ -36,7 +46,7 @@ This is a detailed prompt designed to generate a complete mission context.
     *   Selected Character IDs and their descriptions/backgrounds from the `Character` table.
     *   High-level scenario parameters (e.g., "An infiltration mission in a high-tech lab").
 *   **Instructions (The "Engine Order")**:
-The prompt will explicitly ask the AI to return a JSON object with specific keys that map directly to our database schema. We will **no longer** ask for long, unused fields like `generated_story` or `primary_conflict` as a block of text.
+The helper provides a reusable instructions string ("You are a professional game narrative designer...") and appends call-specific rules. The `response_format={"type": "json_object"}` flag ensures the OpenAI service enforces the JSON schema at generation time, eliminating the need for role-based message parsing.
 
 *   **Proposed JSON Output from AI:**
     ```json
@@ -76,7 +86,7 @@ This phase generates subsequent `StoryNode` records each time the player makes a
 
 **Process Flow:**
 
-1.  **AJAX/Fetch Call**: The browser sends the ID of the current `StoryNode` and the chosen option to a new backend route (e.g., `/make_choice`).
+1.  **AJAX/Fetch Call**: The browser sends the ID of the current `StoryNode` and the chosen option to a new backend route (e.g., `/make_choice`). (We can optionally adopt streaming here by calling the helper with `stream=True` and piping deltas to the client.)
 2.  **Route (`/make_choice`)**: The route retrieves the relevant data.
 3.  **Game Engine (`generate_next_node`)**: A new function will be created for this.
 4.  **OpenAI Integration (`generate_next_story_node`)**: This function constructs and sends the **Continuing Prompt**.
@@ -90,7 +100,7 @@ This prompt is much smaller and more focused. Its job is to maintain story coher
     *   `narrative_text` from the parent `StoryNode` (to give immediate context).
     *   The text of the choice the player just made (e.g., `next_node_summary` from the parent's choice data).
 *   **Instructions (The "Engine Order")**:
-The prompt will ask the AI to generate the outcome of the chosen action, returning a JSON object for the *new* story node.
+The prompt asks the AI to generate the outcome of the chosen action and leverages the same Responses API helper. By passing `stream=True` we can progressively send narrative text to the UI while still validating the final JSON payload once the stream completes.
 
 *   **Proposed JSON Output from AI:**
     ```json
