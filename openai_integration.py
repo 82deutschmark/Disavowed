@@ -1,95 +1,222 @@
 import json
 import os
 import logging
-from openai import OpenAI
+from typing import Any, AsyncGenerator, Dict, Generator, Iterable, Optional
+
+from openai import AsyncOpenAI, OpenAI
+
 
 class OpenAIIntegration:
-    """
-    Integration with OpenAI for dynamic story generation
-    Author: Cascade
-    
-    This module handles all OpenAI API interactions for the Disavowed game.
-    It provides schema-aware prompt templates that ensure AI responses align
-    with database field constraints and return structured JSON data.
-    
-    Key features:
-    - Field length validation to prevent database errors
-    - Structured JSON response parsing with safety checks
-    - Template-based prompts for consistency
-    - Error handling and logging for debugging
-    """
-    
-    def __init__(self):
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        self.model = "gpt-4.1-nano-2025-04-14"  # Current model CHEAP!
-        # self.model = "gpt-4-2025-04-14"  # Standard GPT-4 EXPENSIVE!
-        # self.model = "o4-mini-2025-04-16"  # Reasoning version
-        # self.model = "o3-2025-04-16"  # Ultra expensive reasoning version   VERY EXPENSIVE!
-        
-        # Database schema constraints for validation
+    """Integration with OpenAI's Responses API for story generation."""
+
+    BASE_INSTRUCTIONS = (
+        "You are a professional game narrative designer creating high-stakes espionage choose-your-own-adventure "
+        "experiences. Always follow the requested JSON schema exactly, keep tone bold and cinematic, and never add "
+        "out-of-band commentary."
+    )
+
+    STREAM_EVENT_DELTA = "delta"
+    STREAM_EVENT_RESPONSE = "response"
+    STREAM_EVENT_ERROR = "error"
+
+    def __init__(self) -> None:
+        api_key = os.getenv("OPENAI_API_KEY")
+        self.client = OpenAI(api_key=api_key)
+        self.async_client = AsyncOpenAI(api_key=api_key)
+        self.model = os.getenv("OPENAI_TEXT_MODEL", "gpt-5-nano")
+        self.default_temperature = 0.8
+        self.default_max_output_tokens = 2048
+
         self.SCHEMA_LIMITS = {
-            'mission_title': 200,
-            'mission_description': 1000,  # Keep reasonable for UI
-            'objective': 255,  # This maps to primary_conflict in DB
-            'deadline': 200,
-            'setting': 255,  # This was the main issue - needs to be 255, not 500
-            'narrative_style': 100,
-            'mood': 100,
-            'opening_narrative': 1500,  # Reasonable for UI but not too long
-            'choice_text': 255,  # Conservative for UI
-            'primary_conflict': 255,  # Conservative for database compatibility
-            'narrative_text': 1500,  # Reasonable length
-            'character_name': 200,
-            'next_node_summary': 255  # Conservative for UI
+            "mission_title": 200,
+            "mission_description": 1000,
+            "objective": 255,
+            "deadline": 200,
+            "setting": 255,
+            "narrative_style": 100,
+            "mood": 100,
+            "opening_narrative": 1500,
+            "choice_text": 255,
+            "primary_conflict": 255,
+            "narrative_text": 1500,
+            "character_name": 200,
+            "next_node_summary": 255,
         }
-    
-    def safe_json_parse(self, raw_str):
-        """
-        Since OpenAI already returns valid JSON with response_format=json_object,
-        just parse and validate against schema constraints.
-        
-        Args:
-            raw_str (str): Raw JSON response string from OpenAI
-            
-        Returns:
-            dict: Parsed and validated JSON object, or None if parsing fails
-        """
+
+    def _collect_output_text(self, response: Any) -> str:
+        text = getattr(response, "output_text", None)
+        if text:
+            return text
+
+        collected: list[str] = []
+        for item in getattr(response, "output", []) or []:
+            for content in getattr(item, "content", []) or []:
+                segment = getattr(content, "text", None)
+                if segment:
+                    collected.append(segment)
+
+        if collected:
+            return "".join(collected)
+
+        data = getattr(response, "data", None)
+        if isinstance(data, Iterable):
+            for entry in data:
+                message = getattr(entry, "message", None)
+                if message and hasattr(message, "content"):
+                    for content in message.content or []:
+                        segment = getattr(content, "text", None)
+                        if segment:
+                            collected.append(segment)
+        return "".join(collected)
+
+    def _build_request_params(
+        self,
+        instructions: str,
+        input_text: str,
+        *,
+        temperature: Optional[float] = None,
+        max_output_tokens: Optional[int] = None,
+        response_format: Optional[Dict[str, Any]] = None,
+        model: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        params: Dict[str, Any] = {
+            "model": model or self.model,
+            "instructions": instructions,
+            "input": input_text,
+            "temperature": temperature if temperature is not None else self.default_temperature,
+            "max_output_tokens": max_output_tokens if max_output_tokens is not None else self.default_max_output_tokens,
+        }
+        if response_format:
+            params["response_format"] = response_format
+        return params
+
+    def _request_response(
+        self,
+        *,
+        instructions: str,
+        input_text: str,
+        temperature: Optional[float] = None,
+        max_output_tokens: Optional[int] = None,
+        response_format: Optional[Dict[str, Any]] = None,
+        model: Optional[str] = None,
+        stream: bool = False,
+    ):
+        params = self._build_request_params(
+            instructions,
+            input_text,
+            temperature=temperature,
+            max_output_tokens=max_output_tokens,
+            response_format=response_format,
+            model=model,
+        )
+        expect_json = response_format and response_format.get("type") == "json_object"
+
+        if stream:
+            return self._stream_response(params, expect_json=bool(expect_json))
+
+        response = self.client.responses.create(**params)
+        raw_text = self._collect_output_text(response)
+        if expect_json:
+            return self.safe_json_parse(raw_text)
+        return raw_text
+
+    def _stream_response(self, params: Dict[str, Any], *, expect_json: bool) -> Generator[Dict[str, Any], None, None]:
+        def iterator() -> Generator[Dict[str, Any], None, None]:
+            collected_chunks: list[str] = []
+            with self.client.responses.stream(**params) as stream:
+                for event in stream:
+                    event_type = getattr(event, "type", "")
+                    if event_type == "response.output_text.delta":
+                        delta = getattr(event, "delta", "") or ""
+                        if delta:
+                            collected_chunks.append(delta)
+                            yield {"type": self.STREAM_EVENT_DELTA, "text": delta}
+                    elif event_type == "response.error":
+                        error_detail = getattr(event, "error", None)
+                        yield {"type": self.STREAM_EVENT_ERROR, "error": error_detail}
+                final_response = stream.get_final_response()
+
+            raw_text = "".join(collected_chunks) or self._collect_output_text(final_response)
+            data = self.safe_json_parse(raw_text) if expect_json else raw_text
+            yield {"type": self.STREAM_EVENT_RESPONSE, "data": data}
+
+        return iterator()
+
+    async def _request_response_async(
+        self,
+        *,
+        instructions: str,
+        input_text: str,
+        temperature: Optional[float] = None,
+        max_output_tokens: Optional[int] = None,
+        response_format: Optional[Dict[str, Any]] = None,
+        model: Optional[str] = None,
+        stream: bool = False,
+    ):
+        params = self._build_request_params(
+            instructions,
+            input_text,
+            temperature=temperature,
+            max_output_tokens=max_output_tokens,
+            response_format=response_format,
+            model=model,
+        )
+        expect_json = response_format and response_format.get("type") == "json_object"
+
+        if stream:
+            return self._stream_response_async(params, expect_json=bool(expect_json))
+
+        response = await self.async_client.responses.create(**params)
+        raw_text = self._collect_output_text(response)
+        if expect_json:
+            return self.safe_json_parse(raw_text)
+        return raw_text
+
+    async def _stream_response_async(
+        self, params: Dict[str, Any], *, expect_json: bool
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        collected_chunks: list[str] = []
+        async with self.async_client.responses.stream(**params) as stream:
+            async for event in stream:
+                event_type = getattr(event, "type", "")
+                if event_type == "response.output_text.delta":
+                    delta = getattr(event, "delta", "") or ""
+                    if delta:
+                        collected_chunks.append(delta)
+                        yield {"type": self.STREAM_EVENT_DELTA, "text": delta}
+                elif event_type == "response.error":
+                    error_detail = getattr(event, "error", None)
+                    yield {"type": self.STREAM_EVENT_ERROR, "error": error_detail}
+            final_response = await stream.get_final_response()
+
+        raw_text = "".join(collected_chunks) or self._collect_output_text(final_response)
+        data = self.safe_json_parse(raw_text) if expect_json else raw_text
+        yield {"type": self.STREAM_EVENT_RESPONSE, "data": data}
+
+    def safe_json_parse(self, raw_str: str):
         try:
-            # OpenAI guarantees valid JSON with response_format=json_object
             parsed_response = json.loads(raw_str)
-            
-            # Validate and truncate fields according to schema limits
             validated_data = self._validate_and_truncate(parsed_response)
-            
-            logging.info(f"Successfully parsed and validated OpenAI JSON response")
+            logging.info("Successfully parsed and validated OpenAI JSON response")
             return validated_data
-            
-        except json.JSONDecodeError as e:
-            logging.error(f"Unexpected JSON decode error (OpenAI should return valid JSON): {e}")
-            logging.error(f"Raw response: {raw_str}")
+        except json.JSONDecodeError as exc:
+            logging.error("Unexpected JSON decode error: %s", exc)
+            logging.error("Raw response: %s", raw_str)
             return None
-        except Exception as e:
-            logging.error(f"Unexpected error in safe_json_parse: {e}")
+        except Exception as exc:
+            logging.error("Unexpected error in safe_json_parse: %s", exc)
             return None
-    
+
     def _validate_and_truncate(self, data):
-        """
-        Recursively validate and truncate string fields according to schema limits.
-        Handles nested structures like choices arrays.
-        
-        Args:
-            data: The data structure to validate (dict, list, or primitive)
-            
-        Returns:
-            The validated and truncated data structure
-        """
         if isinstance(data, dict):
             validated = {}
             for key, value in data.items():
                 if isinstance(value, str) and key in self.SCHEMA_LIMITS:
                     max_length = self.SCHEMA_LIMITS[key]
                     if len(value) > max_length:
-                        logging.warning(f"Truncating field '{key}' from {len(value)} to {max_length} characters")
+                        logging.warning(
+                            "Truncating field '%s' from %s to %s characters", key, len(value), max_length
+                        )
                         validated[key] = value[:max_length]
                     else:
                         validated[key] = value
@@ -98,482 +225,348 @@ class OpenAIIntegration:
                 else:
                     validated[key] = value
             return validated
-        elif isinstance(data, list):
+        if isinstance(data, list):
             return [self._validate_and_truncate(item) for item in data]
-        else:
-            return data
-    
-    def generate_full_mission_story(self, mission_giver, villain, partner, random_character, player_name, player_gender, narrative_style=None, mood=None):
-        """
-        Generate complete mission with story opening and 3 choices using schema-aware prompts.
-        Returns structured JSON that aligns with database schema constraints.
-        """
+        return data
+
+
+
+    def generate_full_mission_story(
+        self,
+        mission_giver,
+        villain,
+        partner,
+        random_character,
+        player_name,
+        player_gender,
+        narrative_style=None,
+        mood=None,
+        *,
+        stream: bool = False,
+    ):
         try:
             pronouns = {'he/him': 'he', 'she/her': 'she', 'they/them': 'they'}.get(player_gender, 'they')
-            
-            # Set defaults if not provided
-            if not narrative_style:
-                narrative_style = 'Modern Espionage Thriller'
-            if not mood:
-                mood = 'Action-packed and Suspenseful'
-            
-            # Extract character info properly
-            def get_character_info(char):
-                # Use description if available, otherwise note they have an image
+            narrative_style = narrative_style or 'Modern Espionage Thriller'
+            mood = mood or 'Action-packed and Suspenseful'
+
+            def describe_character(char):
                 if char.image_url:
                     desc = f"[See character image at {char.image_url}]"
                 else:
                     desc = "Character appearance not described"
-                
-                # Extract traits
+
                 traits = ""
                 if char.character_traits:
                     if isinstance(char.character_traits, dict):
-                        # Handle dict format like {'cunning': '', 'strategic': ''}
                         trait_list = []
-                        for k, v in char.character_traits.items():
-                            if v and v.strip():
-                                trait_list.append(f"{k}: {v}")
+                        for key, value in char.character_traits.items():
+                            if value and value.strip():
+                                trait_list.append(f"{key}: {value}")
                             else:
-                                trait_list.append(k)
+                                trait_list.append(key)
                         traits = ", ".join(trait_list)
                     elif isinstance(char.character_traits, list):
                         traits = ", ".join(char.character_traits)
                     else:
                         traits = str(char.character_traits)
-                
-                # Extract backstory
+
                 backstory = ""
                 if char.backstory:
-                    if isinstance(char.backstory, str):
-                        backstory = char.backstory
-                    else:
-                        backstory = str(char.backstory)
-                
+                    backstory = char.backstory if isinstance(char.backstory, str) else str(char.backstory)
+
                 result = desc
                 if traits:
                     result += f" TRAITS: {traits}."
                 if backstory:
                     result += f" BACKSTORY: {backstory}"
-                
                 return result
-            
-            giver_info = get_character_info(mission_giver)
-            villain_info = get_character_info(villain)
-            partner_info = get_character_info(partner)
-            random_info = get_character_info(random_character)
-            
-            # Schema-aware prompt template with strict field length constraints
-            prompt = f"""
-You are creating a mission for an espionage thriller game. You MUST return ONLY a valid JSON object with the exact structure shown below. 
 
-CRITICAL CONSTRAINTS:
-- mission_title: Maximum 200 characters
-- objective: No length limit (text field)
-- deadline: Maximum 200 characters  
-- setting: Maximum 255 characters
-- narrative_style: Maximum 100 characters
-- mood: Maximum 100 characters
-- opening_narrative: No length limit but keep under 2000 characters for readability
-- choice_text: No length limit but keep each choice under 255 characters for UI
-- difficulty: Must be exactly one of: "low", "medium", "high"
-- risk_level: Must be exactly one of: "low", "medium", "high"
+            character_lines = "\n".join([
+                f"- Mission Giver {mission_giver.character_name}: {describe_character(mission_giver)}",
+                f"- Target/Villain {villain.character_name}: {describe_character(villain)}",
+                f"- Partner {partner.character_name}: {describe_character(partner)}",
+                f"- Additional Character {random_character.character_name}: {describe_character(random_character)}",
+            ])
 
-JSON FORMATTING RULES:
-- Do NOT include literal line breaks inside string values
-- Use \\n for line breaks within strings if needed
-- Ensure all strings are properly escaped
-- Return valid, parseable JSON only
-
-CHARACTERS:
-- Player: {player_name} (pronouns: {pronouns})
-- Mission Giver: {mission_giver.character_name} - {giver_info}
-- Target/Villain: {villain.character_name} - {villain_info}  
-- Partner: {partner.character_name} - {partner_info}
-- Additional Character: {random_character.character_name} - {random_info}
-
-REQUIREMENTS:
-1. Create a mission where {mission_giver.character_name} briefs {player_name} to target {villain.character_name}
-2. {partner.character_name} is assigned as the partner for this mission
-3. Write an opening narrative in {narrative_style} style with {mood} mood that establishes the mission scenario using the character backgrounds
-4. Generate exactly 3 distinct choices, each incorporating one of these characters: {partner.character_name}, {random_character.character_name}, or another creative option
-5. Each choice should represent different risk levels and approaches (cautious, moderate, aggressive)
-6. Make it action-packed espionage with stakes and tension, maintaining the {mood} mood
-
-RESPONSE FORMAT (JSON) - NO LINE BREAKS IN STRING VALUES:
-{{
-  "mission_title": "Brief mission title (<=200 chars)",
-  "mission_description": "2-3 paragraph mission briefing",
-  "objective": "Clear, actionable mission goal",
-  "difficulty": "medium",
-  "deadline": "Time constraint description (<=200 chars)",
-  "setting": "Concise location description (<=255 chars)",
-  "narrative_style": "{narrative_style}",
-  "mood": "{mood}",
-  "opening_narrative": "2-3 paragraphs setting the scene and immediate situation",
-  "choices": [
-    {{
-      "text": "First choice option",
-      "character_used": "{partner.character_name}",
-      "risk_level": "low",
-      "next_node_summary": "Brief description of what happens if this choice is selected"
-    }},
-    {{
-      "text": "Second choice option", 
-      "character_used": "{random_character.character_name}",
-      "risk_level": "medium",
-      "next_node_summary": "Brief description of what happens if this choice is selected"
-    }},
-    {{
-      "text": "Third choice option",
-      "character_used": "{player_name}",
-      "risk_level": "high", 
-      "next_node_summary": "Brief description of what happens if this choice is selected"
-    }}
-  ]
-}}
-
-Create an engaging espionage mission that involves the mission giver assigning a task related to the villain. The player must work with their partner and the additional character. Make it exciting but ensure all text fits within the specified length limits.
-"""
-
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a professional game narrative designer. You MUST return only valid JSON with no additional text or formatting. Do not include literal line breaks inside string values - use \\n for line breaks."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=2000,
-                temperature=0.8,
-                response_format={"type": "json_object"}
+            instructions = (
+                f"{self.BASE_INSTRUCTIONS} Return a JSON object describing a full mission package with metadata, an opening "
+                "narrative, and three branching choices. Respect every length limit and schema requirement."
             )
-            
-            raw_response = response.choices[0].message.content
-            logging.info(f"Raw OpenAI response: {raw_response}")
-            
-            # Use safe parsing with schema validation
-            parsed_response = self.safe_json_parse(raw_response)
-            
-            if not parsed_response:
-                logging.error("Failed to parse OpenAI response as valid JSON")
+
+            schema_description = (
+                "Return JSON with this structure:\n"
+                "{\n"
+                '  "mission_title": "Brief mission title (<=200 chars)",\n'
+                '  "mission_description": "2-3 paragraph mission briefing",\n'
+                '  "objective": "Clear, actionable mission goal",\n'
+                '  "difficulty": "low" | "medium" | "high",\n'
+                '  "deadline": "Time constraint description (<=200 chars)",\n'
+                '  "setting": "Concise location description (<=255 chars)",\n'
+                f'  "narrative_style": "{narrative_style}",\n'
+                f'  "mood": "{mood}",\n'
+                '  "opening_narrative": "2-3 paragraphs setting the scene",\n'
+                '  "choices": [\n'
+                '    {"text": "Choice option", "character_used": "Name", "risk_level": "low|medium|high", "next_node_summary": "Outcome"}\n'
+                '  ]\n'
+                "}\n"
+                "Never include extra fields or commentary."
+            )
+
+            requirements = (
+                "Mission Requirements:\n"
+                f"1. {mission_giver.character_name} briefs {player_name} on how to neutralize {villain.character_name}.\n"
+                f"2. {partner.character_name} partners with the player.\n"
+                f"3. Use {narrative_style} style and {mood} mood.\n"
+                "4. The opening narrative should establish stakes and conclude at the first decision.\n"
+                "5. Provide exactly three distinct choices with escalating risk."
+            )
+
+            input_text = (
+                f"Player Profile:\n- Name: {player_name}\n- Pronouns: {pronouns}\n"
+                f"- Preferred Style: {narrative_style}\n- Desired Mood: {mood}\n\n"
+                f"Characters:\n{character_lines}\n\n"
+                f"{requirements}\n\n"
+                f"{schema_description}\nGenerate the mission package now."
+            )
+
+            response = self._request_response(
+                instructions=instructions,
+                input_text=input_text,
+                max_output_tokens=2000,
+                temperature=self.default_temperature,
+                response_format={"type": "json_object"},
+                stream=stream,
+            )
+
+            if stream:
+                return response
+            if not response:
+                logging.error("Failed to obtain mission story data from OpenAI")
                 return None
-                
-            return parsed_response
-            
-        except Exception as e:
-            logging.error(f"Error in generate_full_mission_story: {e}")
+
+            logging.info("Successfully generated full mission story via Responses API")
+            return response
+        except Exception as exc:
+            logging.error("Error in generate_full_mission_story: %s", exc)
             return None
-    
-    def generate_mission(self, mission_giver):
-        """
-        Generate a mission briefing from a character using schema-aware prompts.
-        Returns structured JSON that aligns with database schema constraints.
-        """
+
+    def generate_mission(self, mission_giver, *, stream: bool = False):
         try:
-            character_info = f"""
-            Name: {mission_giver.character_name}
-            Role: {mission_giver.character_role}
-            Traits: {mission_giver.character_traits}
-            Backstory: {mission_giver.backstory}
-            """
-            
-            prompt = f"""You are creating a mission briefing for an irreverent espionage CYOA game. 
-            The mission giver is: {character_info}
-            
-            Generate a mission that fits this character's devil-may-care personality and role. The game has a bold, 
-            risk-taking attitude with high stakes espionage themes.
-            
-            Respond with JSON in this exact format:
-            {{
-                "title": "Mission title (<=200 chars)",
-                "description": "Brief mission description (2-3 sentences)",
-                "objective": "Clear objective statement",
-                "difficulty": "easy/medium/hard",
-                "deadline": "Narrative deadline description (<=200 chars)"
-            }}
-            
-            Make it exciting but ensure all text fits within the specified length limits.
-            """
-            
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a professional game narrative designer. You MUST return only valid JSON with no additional text or formatting. Do not include literal line breaks inside string values - use \\n for line breaks."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=1000,
-                temperature=0.8,
-                response_format={"type": "json_object"}
+            instructions = (
+                f"{self.BASE_INSTRUCTIONS} Produce a concise mission briefing that reflects the mission giver's personality. "
+                "Return only the JSON schema described in the input."
             )
-            
-            raw_response = response.choices[0].message.content
-            logging.info(f"Raw OpenAI response: {raw_response}")
-            
-            # Use safe parsing with schema validation
-            parsed_response = self.safe_json_parse(raw_response)
-            
-            if not parsed_response:
-                logging.error("Failed to parse OpenAI response as valid JSON")
-                return None
-                
-            return parsed_response
-            
-        except Exception as e:
-            logging.error(f"Error in generate_mission: {e}")
+
+            character_profile = (
+                f"Name: {mission_giver.character_name}\n"
+                f"Role: {mission_giver.character_role}\n"
+                f"Traits: {mission_giver.character_traits}\n"
+                f"Backstory: {mission_giver.backstory}"
+            )
+
+            schema = (
+                "Respond with JSON in this format:\n"
+                "{\n"
+                '  "title": "Mission title (<=200 chars)",\n'
+                '  "description": "Brief mission description (2-3 sentences)",\n'
+                '  "objective": "Clear objective statement",\n'
+                '  "difficulty": "easy" | "medium" | "hard",\n'
+                '  "deadline": "Narrative deadline description (<=200 chars)"\n'
+                "}"
+            )
+
+            input_text = (
+                "Mission Giver Profile:\n"
+                f"{character_profile}\n\n"
+                "Game tone: irreverent, high-stakes espionage.\n"
+                "Craft an exciting mission that fits the character.\n\n"
+                f"{schema}"
+            )
+
+            response = self._request_response(
+                instructions=instructions,
+                input_text=input_text,
+                max_output_tokens=1000,
+                temperature=self.default_temperature,
+                response_format={"type": "json_object"},
+                stream=stream,
+            )
+
+            if stream:
+                return response
+            return response or None
+        except Exception as exc:
+            logging.error("Error in generate_mission: %s", exc)
             return None
-    
-    def generate_story_opening(self, mission, mission_giver):
-        """
-        Generate the opening narrative for a mission using schema-aware prompts.
-        Returns structured JSON that aligns with database schema constraints.
-        """
+
+    def generate_story_opening(self, mission, mission_giver, *, stream: bool = False):
         try:
-            character_name = mission_giver.character_name if mission_giver else "ERROR"
-            
-            prompt = f"""You are writing the opening scene for an irreverent espionage CYOA game.
-            
-            Mission: {mission.title}
-            Description: {mission.description}
-            Mission Giver: {character_name}
-            
-            Write a 2-3 paragraph opening that:
-            1. Sets the scene with tension and espionage atmosphere
-            2. Has the mission giver brief the player (a disavowed spy)
-            3. Maintains a bold, risk-taking tone with high stakes
-            4. Ends with the player about to make their first decision
-            
-            Respond with JSON in this exact format:
-            {{
-                "opening_narrative": "2-3 paragraphs setting the scene and immediate situation"
-            }}
-            
-            Make it engaging but ensure all text fits within the specified length limits.
-            """
-            
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a professional game narrative designer. You MUST return only valid JSON with no additional text or formatting. Do not include literal line breaks inside string values - use \\n for line breaks."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=1000,
-                temperature=0.8,
-                response_format={"type": "json_object"}
+            character_name = mission_giver.character_name if mission_giver else "Unknown"
+            instructions = (
+                f"{self.BASE_INSTRUCTIONS} Write an opening scene that sets up the mission context. Return only the JSON schema "
+                "provided."
             )
-            
-            raw_response = response.choices[0].message.content
-            logging.info(f"Raw OpenAI response: {raw_response}")
-            
-            # Use safe parsing with schema validation
-            parsed_response = self.safe_json_parse(raw_response)
-            
-            if not parsed_response:
-                logging.error("Failed to parse OpenAI response as valid JSON")
-                return None
-                
-            return parsed_response
-            
-        except Exception as e:
-            logging.error(f"Error in generate_story_opening: {e}")
+
+            input_text = (
+                "Mission Context:\n"
+                f"Title: {mission.title}\n"
+                f"Description: {mission.description}\n"
+                f"Mission Giver: {character_name}\n\n"
+                "Write 2-3 paragraphs that build tension, brief the player, and conclude at the first decision point.\n"
+                "Respond with JSON containing only {\n  \"opening_narrative\": \"...\"\n}."
+            )
+
+            response = self._request_response(
+                instructions=instructions,
+                input_text=input_text,
+                max_output_tokens=1200,
+                temperature=self.default_temperature,
+                response_format={"type": "json_object"},
+                stream=stream,
+            )
+
+            if stream:
+                return response
+            return response or None
+        except Exception as exc:
+            logging.error("Error in generate_story_opening: %s", exc)
             return None
-    
-    def generate_choices(self, current_narrative, character, game_state, available_characters=None):
-        """
-        Generate 3 AI choices for the current narrative, each incorporating a random character using schema-aware prompts.
-        Returns structured JSON that aligns with database schema constraints.
-        """
+
+    def generate_choices(
+        self,
+        current_narrative,
+        character,
+        game_state,
+        available_characters=None,
+        *,
+        stream: bool = False,
+    ):
         try:
             character_info = ""
             if character:
                 character_info = f"Current character: {character.character_name} ({character.character_role})"
-            
-            # Include available characters for incorporation into choices
+
             character_pool = ""
             if available_characters:
-                character_pool = f"""
-Available characters to incorporate into choices:
-{chr(10).join([f"- {char.character_name}: {char.description[:100]}..." for char in available_characters[:6]])}
-"""
-            
-            prompt = f"""You are generating choices for an irreverent espionage CYOA game.
-            
-            Current narrative: {current_narrative}
-            {character_info}
-            Game context: {json.dumps(game_state) if game_state else 'Starting mission'}
-            {character_pool}
-            
-            Generate exactly 3 distinct choices that:
-            1. Fit the espionage theme with bold, risky options
-            2. Have different risk/reward levels (cautious, moderate, aggressive)
-            3. Each choice should incorporate one of the available characters as an ally/contact/helper
-            4. Each choice should be 1-2 sentences, actionable and specific
-            5. Include potential consequences for each choice
-            
-            Respond with JSON in this exact format:
-            {{
-                "choices": [
-                    {{
-                        "text": "Choice 1 text mentioning character name",
-                        "consequence": "Brief description of likely outcome",
-                        "character_used": "Character Name",
-                        "risk_level": "low/medium/high"
-                    }},
-                    {{
-                        "text": "Choice 2 text mentioning character name",
-                        "consequence": "Brief description of likely outcome",
-                        "character_used": "Character Name",
-                        "risk_level": "low/medium/high"
-                    }},
-                    {{
-                        "text": "Choice 3 text mentioning character name",
-                        "consequence": "Brief description of likely outcome",
-                        "character_used": "Character Name",
-                        "risk_level": "low/medium/high"
-                    }}
+                pool_lines = [
+                    f"- {char.character_name}: {str(getattr(char, 'description', 'No description'))[:100]}"
+                    for char in available_characters[:6]
                 ]
-            }}
-            
-            Make it engaging but ensure all text fits within the specified length limits.
-            """
-            
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a professional game narrative designer. You MUST return only valid JSON with no additional text or formatting. Do not include literal line breaks inside string values - use \\n for line breaks."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=1500,
-                temperature=0.8,
-                response_format={"type": "json_object"}
+                character_pool = "Available characters to feature:\n" + "\n".join(pool_lines) + "\n\n"
+
+            instructions = (
+                f"{self.BASE_INSTRUCTIONS} Provide exactly three espionage-themed choices with varied risk levels. Return only "
+                "the specified JSON schema."
             )
-            
-            raw_response = response.choices[0].message.content
-            logging.info(f"Raw OpenAI response: {raw_response}")
-            
-            # Use safe parsing with schema validation
-            parsed_response = self.safe_json_parse(raw_response)
-            
-            if not parsed_response:
-                logging.error("Failed to parse OpenAI response as valid JSON")
-                return None
-                
-            return parsed_response
-            
-        except Exception as e:
-            logging.error(f"Error in generate_choices: {e}")
+
+            input_text = (
+                f"Current narrative:\n{current_narrative}\n\n"
+                f"{character_info}\n"
+                f"Game state: {json.dumps(game_state) if game_state else 'Starting mission'}\n\n"
+                f"{character_pool}"
+                "Choices must mention different allies, outline consequences, and cover low/medium/high risk levels.\n"
+                "Respond with {\n  \"choices\": [ { ... } ]\n}."
+            )
+
+            response = self._request_response(
+                instructions=instructions,
+                input_text=input_text,
+                max_output_tokens=1500,
+                temperature=self.default_temperature,
+                response_format={"type": "json_object"},
+                stream=stream,
+            )
+
+            if stream:
+                return response
+            return response or None
+        except Exception as exc:
+            logging.error("Error in generate_choices: %s", exc)
             return None
-    
-    def generate_story_continuation(self, previous_text, chosen_action, character, game_state):
-        """
-        Generate story continuation based on player choice using schema-aware prompts.
-        Returns structured JSON that aligns with database schema constraints.
-        """
+
+    def generate_story_continuation(
+        self,
+        previous_text,
+        chosen_action,
+        character,
+        game_state,
+        *,
+        stream: bool = False,
+    ):
         try:
             character_info = ""
             if character:
-                character_info = f"Current character: {character.character_name}"
-            
-            prompt = f"""Continue this espionage story based on the player's choice. Use the game state to maintain context.
-            
-            Previous narrative: {previous_text} 
-            Player's action: {chosen_action}
-            {character_info}
-            
-            Write a meaningful continuation that:
-            1. Shows the immediate consequences of the player's action
-            2. Advances the story with new complications or revelations 
-            3. Maintains context with the mission
-            4. Sets up the next decision point
-            5. Keeps the bold, risk-taking tone
-            
-            Respond with JSON in this exact format:
-            {{
-                "narrative_text": "Continuation of the story"
-            }}
-            
-            Make it engaging but ensure all text fits within the specified length limits.
-            """
-            
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a professional game narrative designer. You MUST return only valid JSON with no additional text or formatting. Do not include literal line breaks inside string values - use \\n for line breaks."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=1500,
-                temperature=0.8,
-                response_format={"type": "json_object"}
+                character_info = f"Active character: {character.character_name}"
+
+            instructions = (
+                f"{self.BASE_INSTRUCTIONS} Continue the story based on the player's action. Return only the specified JSON "
+                "schema."
             )
-            
-            raw_response = response.choices[0].message.content
-            logging.info(f"Raw OpenAI response: {raw_response}")
-            
-            # Use safe parsing with schema validation
-            parsed_response = self.safe_json_parse(raw_response)
-            
-            if not parsed_response:
-                logging.error("Failed to parse OpenAI response as valid JSON")
-                return None
-                
-            return parsed_response
-            
-        except Exception as e:
-            logging.error(f"Error in generate_story_continuation: {e}")
+
+            input_text = (
+                f"Previous narrative:\n{previous_text}\n\n"
+                f"Player action: {chosen_action}\n"
+                f"{character_info}\n"
+                f"Game state: {json.dumps(game_state) if game_state else 'N/A'}\n\n"
+                "Deliver a vivid continuation that shows consequences and sets up the next decision.\n"
+                "Respond with {\n  \"narrative_text\": \"...\"\n}."
+            )
+
+            response = self._request_response(
+                instructions=instructions,
+                input_text=input_text,
+                max_output_tokens=1500,
+                temperature=self.default_temperature,
+                response_format={"type": "json_object"},
+                stream=stream,
+            )
+
+            if stream:
+                return response
+            return response or None
+        except Exception as exc:
+            logging.error("Error in generate_story_continuation: %s", exc)
             return None
-    
-    def generate_custom_choice_response(self, current_text, custom_action, character, game_state):
-        """
-        Generate response to a custom user-input choice using schema-aware prompts.
-        Returns structured JSON that aligns with database schema constraints.
-        """
+
+    def generate_custom_choice_response(
+        self,
+        current_text,
+        custom_action,
+        character,
+        game_state,
+        *,
+        stream: bool = False,
+    ):
         try:
             character_info = ""
             if character:
-                character_info = f"Current character: {character.character_name}"
-            
-            prompt = f"""Respond to a custom player action in this espionage story.
-            
-            Current situation: {current_text}
-            Player's custom action: {custom_action}
-            {character_info}
-            
-            Write a response that:
-            1. Acknowledges and incorporates the player's creative action
-            2. Shows realistic consequences (positive, negative, or mixed)
-            3. Maintains story coherence and espionage theme
-            4. Advances the plot in an interesting direction
-            5. Keeps the bold, irreverent tone
-            
-            Respond with JSON in this exact format:
-            {{
-                "narrative_text": "Response to the custom choice"
-            }}
-            
-            Make it impactful but ensure all text fits within the specified length limits.
-            """
-            
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a professional game narrative designer. You MUST return only valid JSON with no additional text or formatting. Do not include literal line breaks inside string values - use \\n for line breaks."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=1500,
-                temperature=0.8,
-                response_format={"type": "json_object"}
+                character_info = f"Active character: {character.character_name}"
+
+            instructions = (
+                f"{self.BASE_INSTRUCTIONS} Respond to an improvised player action. Return only the specified JSON schema."
             )
-            
-            raw_response = response.choices[0].message.content
-            logging.info(f"Raw OpenAI response: {raw_response}")
-            
-            # Use safe parsing with schema validation
-            parsed_response = self.safe_json_parse(raw_response)
-            
-            if not parsed_response:
-                logging.error("Failed to parse OpenAI response as valid JSON")
-                return None
-                
-            return parsed_response
-            
-        except Exception as e:
-            logging.error(f"Error in generate_custom_choice_response: {e}")
+
+            input_text = (
+                f"Current situation:\n{current_text}\n\n"
+                f"Player's custom action: {custom_action}\n"
+                f"{character_info}\n"
+                f"Game state: {json.dumps(game_state) if game_state else 'N/A'}\n\n"
+                "Acknowledge the action, portray consequences, and maintain espionage tone.\n"
+                "Respond with {\n  \"narrative_text\": \"...\"\n}."
+            )
+
+            response = self._request_response(
+                instructions=instructions,
+                input_text=input_text,
+                max_output_tokens=1500,
+                temperature=self.default_temperature,
+                response_format={"type": "json_object"},
+                stream=stream,
+            )
+
+            if stream:
+                return response
+            return response or None
+        except Exception as exc:
+            logging.error("Error in generate_custom_choice_response: %s", exc)
             return None
